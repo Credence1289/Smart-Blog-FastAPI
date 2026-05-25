@@ -1,4 +1,5 @@
 # Smart Blog API
+<img width="751" height="648" alt="image" src="https://github.com/user-attachments/assets/a6364180-684f-4add-8a08-c0be5afb45f8" />
 
 A modular blogging backend API built using **FastAPI** with JWT Authentication, SQLAlchemy ORM, API versioning, and clean architecture principles.
 
