@@ -12,7 +12,7 @@ venv.bak/
 
 # FastAPI / Environment
 .env
-.env.*
+.env.
 *.env
 
 # PyCharm / JetBrains (keep project settings, ignore user-specific)
