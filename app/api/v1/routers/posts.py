@@ -2,8 +2,8 @@ from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.orm import Session
 from typing import Optional
 
-from app.schema.posts_schema import PostCreate, PostShow
-from app.schema.users_schema import UserIn, UserOut
+from app.schemas.posts_schema import PostCreate, PostShow
+from app.schemas.users_schema import UserIn, UserOut
 from app.db.session import get_db
 from app.core.hashing import hash_password, verify_password
 from app.core.token import create_access_token, decode_token
