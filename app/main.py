@@ -1,9 +1,18 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+import logging
+from app.core.logger import set_logger
+
+set_logger()
 
 from app.api.v1.api import sb_router
 
+logger = logging.getLogger(__name__)
+
 def create_app() -> FastAPI:
+
+    logger.info("Starting Smart Blog API.....")
+
     app = FastAPI(
         title="Smart Blog API",
         description="Smart Blogging",

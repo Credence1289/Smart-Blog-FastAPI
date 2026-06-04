@@ -1,14 +1,13 @@
 from sqlalchemy import create_engine
-from dotenv import load_dotenv
-from pathlib import Path
-import os
+from app.core.config import settings
+import logging
 
-env_path = Path(__file__).resolve().parent.parent.parent / ".env"
-load_dotenv(dotenv_path=env_path, override=True)
+logger = logging.getLogger(__name__)
 
-DATABASE_URL = os.getenv("DATABASE_URL")
+DATABASE_URL = str(settings.DATABASE_URL)
 
 if not DATABASE_URL:
+    logger.critical("DATABASE_URL environment variable not set")
     raise RuntimeError("DATABASE_URL is not set")
 
 engine = create_engine(

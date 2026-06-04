@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Depends, status
 from sqlalchemy.orm import Session
 from fastapi.security import OAuth2PasswordRequestForm
-
+import logging
 
 from app.schemas.users_schema import UserIn, UserOut
 from app.db.session import get_db
@@ -12,28 +12,32 @@ from app.models import models
 
 router = APIRouter()
 
+logger = logging.getLogger(__name__)
+
 @router.post("/register", response_model=UserOut)
 def register_user(
     user: UserIn,
     db: Session = Depends(get_db)
 ):
     existing_user = (
-        db.query(db_models.User)
-        .filter(db_models.User.email == user.email)
+        db.query(models.User)
+        .filter(models.User.email == user.email)
         .first()
     )
     if existing_user:
+        logger.info("User already exists")
         raise HTTPException(status_code=400, detail="User already exists")
 
     username_exists = (
-        db.query(db_models.User)
-        .filter(db_models.User.username == user.username)
+        db.query(models.User)
+        .filter(models.User.username == user.username)
         .first()
     )
     if username_exists:
+        logger.info("Username already taken")
         raise HTTPException(status_code=400, detail="Username already taken")
 
-    new_user = db_models.User(
+    new_user = models.User(
         name=user.name,
         username=user.username,
         email=user.email,
@@ -42,6 +46,7 @@ def register_user(
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
+    logger.info("User successfully register")
     return new_user
 
 
@@ -51,12 +56,14 @@ def login_user(
     form_data: OAuth2PasswordRequestForm = Depends()
 ):
     user = (
-        db.query(db_models.User)
-        .filter(db_models.User.username == form_data.username)
+        db.query(models.User)
+        .filter(models.User.username == form_data.username)
         .first()
     )
     if not user or not verify_password(form_data.password, user.hashed_password):
+        logger.warning("Authentication failed for username%s", form_data.username)
         raise HTTPException(status_code=401, detail="Invalid Credentials")
 
     access_token = create_access_token(user_id=user.user_id, role="user")
+    logger.debug(f"Access Token generated for {user.user_id}")
     return {"access_token": access_token, "token_type": "bearer"}

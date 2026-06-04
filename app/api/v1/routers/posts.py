@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.orm import Session
 from typing import Optional
+import logging
 
 from app.schemas.posts_schema import PostCreate, PostShow
 from app.schemas.users_schema import UserIn, UserOut
@@ -13,13 +14,15 @@ from app.models import models
 
 router = APIRouter()
 
+logger = logging.getLogger(__name__)
+
 @router.post("/post")
 def create_post(
      post: PostCreate,
      db: Session = Depends(get_db),
      current: dict = Depends(current_user)
 ):
-    new_post = db_models.Post(
+    new_post = models.Post(
         user_id=current["user"].user_id,
         content_type=post.content_type,
         title=post.title,
@@ -28,6 +31,17 @@ def create_post(
     db.add(new_post)
     db.commit()
     db.refresh(new_post)
+
+    logger.info(
+        "New post created",
+        extra={
+            "post_id": new_post.post_id,
+            "user_id": new_post.user_id,
+            "content_type": new_post.content_type,
+        }
+    )
+
+    return new_post
     return {"Message": "Post Created"}
 
 
@@ -38,10 +52,12 @@ def show_my_posts(
     current: dict = Depends(current_user)
 ):
     posts = (
-        db.query(db_models.Post)
-        .filter(db_models.Post.user_id == current["user"].user_id)
+        db.query(models.Post)
+        .filter(models.Post.user_id == current["user"].user_id)
         .all()
     )
+    logger.info(f"Posts fetched by {current['user'].user_id}")
+
     return [
         {
             "post_id": p.post_id,
@@ -63,20 +79,23 @@ def show_all_posts(
     current: dict = Depends(current_user)
 ):
 
-    query = db.query(db_models.Post).join(db_models.User)
+    query = db.query(models.Post).join(models.User)
 
     if content_type and content_type.lower() != "all":
         query = query.filter(
-            db_models.Post.content_type == content_type
+            models.Post.content_type == content_type
         )
 
     posts = query.all()
 
     if not posts:
+        logger.info(f"No posts found for content type=%s", content_type)
+
         raise HTTPException(
             status_code=404,
             detail="Posts not found"
         )
+    logger.info(f"Posts fetched by {current['user'].user_id}")
 
     return [
         {
@@ -99,13 +118,15 @@ def update_post(
     current: dict = Depends(current_user)
 ):
     existing_post = (
-        db.query(db_models.Post)
-        .filter(db_models.Post.post_id == post_id)
+        db.query(models.Post)
+        .filter(models.Post.post_id == post_id)
         .first()
     )
     if not existing_post:
+        logger.warning(f"Post not found: %s", post_id)
         raise HTTPException(status_code=404, detail="Post not found")
     if existing_post.user_id != current["user"].user_id:
+        logger.warning(f"Invalid user")
         raise HTTPException(status_code=403, detail="Not authorized to edit this post")
 
     existing_post.content_type = post.content_type
@@ -113,6 +134,7 @@ def update_post(
     existing_post.post = post.post
     db.commit()
     db.refresh(existing_post)
+    logger.info(f"Post {existing_post.post_id} is successfully updated")
     return {"Message": "Post Updated"}
 
 
@@ -121,8 +143,10 @@ def delete_all_posts(
     db: Session = Depends(get_db),
     current: dict = Depends(current_user)
 ):
-    db.query(db_models.Post).filter(db_models.Post.user_id == current["user"].user_id).delete()
+    db.query(models.Post).filter(models.Post.user_id == current["user"].user_id).delete()
     db.commit()
+    logger.info("Posts are successfully deleted")
+
     return {"Message": "Posts Deleted"}
 
 
@@ -133,15 +157,18 @@ def delete_post(
     current: dict = Depends(current_user)
 ):
     post = (
-        db.query(db_models.Post)
-        .filter(db_models.Post.post_id == post_id)
+        db.query(models.Post)
+        .filter(models.Post.post_id == post_id)
         .first()
     )
     if not post:
+        logger.error("Post not found")
         raise HTTPException(status_code=404, detail="Post not found")
     if post.user_id != current["user"].user_id:
+        logger.warning(f"Invalid user")
         raise HTTPException(status_code=403, detail="Not authorized to delete this post")
 
     db.delete(post)
     db.commit()
+    logger.info("Post is successfully deleted")
     return {"Message": "Post Deleted"}

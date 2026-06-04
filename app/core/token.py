@@ -1,18 +1,15 @@
 from datetime import timedelta, datetime
 from jose import jwt, JWTError
 import uuid
-import os
-from pathlib import Path
-from dotenv import load_dotenv
+import logging
 
-load_dotenv()
+logger = logging.getLogger(__name__)
 
-env_path = Path(__file__).resolve().parent.parent / ".env"
-load_dotenv(dotenv_path=env_path, override=True)
+from app.core.config import settings
 
-SECRET_KEY = os.getenv("SECRET_KEY")
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRY_MIN = 30
+SECRET_KEY = settings.SECRET_KEY
+ALGORITHM = settings.ALGORITHM
+ACCESS_TOKEN_EXPIRY_MIN = settings.ACCESS_TOKEN_EXPIRY_MIN
 
 def create_access_token(
         user_id : int,
@@ -46,5 +43,6 @@ def decode_token(token : str)->dict:
             algorithms = [ALGORITHM]
         )
         return payload
-    except JWTError:
+    except JWTError as exc:
+        logger.warning("JWT decode failed", exc_info=exc)
         return None
