@@ -2,7 +2,7 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 import logging
-wa
+
 logger = logging.getLogger(__name__)
 
 from app.core.token import decode_token

@@ -16,3 +16,8 @@ class PostShow(BaseModel):
     title: str
     post: str
     created_at: datetime = Field(default_factory=datetime.now)
+
+class PostUpdate(BaseModel):
+    content_type: Optional[str] = None
+    title: Optional[str] = None
+    post: Optional[str] = None

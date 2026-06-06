@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from typing import Optional
 import logging
 
-from app.schemas.posts_schema import PostCreate, PostShow
+from app.schemas.posts_schema import PostCreate, PostShow,PostUpdate
 from app.schemas.users_schema import UserIn, UserOut
 from app.db.session import get_db
 from app.core.hashing import hash_password, verify_password
@@ -112,8 +112,8 @@ def show_all_posts(
 
 @router.put("/post/{post_id}")
 def update_post(
-    post_id: int, username: str,
-    post: PostCreate,
+    post_id:int,
+    post: PostUpdate,
     db: Session = Depends(get_db),
     current: dict = Depends(current_user)
 ):
@@ -129,9 +129,17 @@ def update_post(
         logger.warning(f"Invalid user")
         raise HTTPException(status_code=403, detail="Not authorized to edit this post")
 
-    existing_post.content_type = post.content_type
-    existing_post.title = post.title
-    existing_post.post = post.post
+    update_data = post.model_dump(exclude_unset=True)
+
+    if post.title is not None:
+        existing_post.title = post.title
+
+    if post.post is not None:
+        existing_post.post = post.post
+
+    if post.content_type is not None:
+        existing_post.content_type = post.content_type
+
     db.commit()
     db.refresh(existing_post)
     logger.info(f"Post {existing_post.post_id} is successfully updated")

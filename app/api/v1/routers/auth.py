@@ -65,5 +65,5 @@ def login_user(
         raise HTTPException(status_code=401, detail="Invalid Credentials")
 
     access_token = create_access_token(user_id=user.user_id, role="user")
-    logger.debug(f"Access Token generated for {user.user_id}")
+    logger.info(f"User with {user.user_id} successfully login")
     return {"access_token": access_token, "token_type": "bearer"}
