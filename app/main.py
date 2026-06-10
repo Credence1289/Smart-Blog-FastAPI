@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse
 import logging
 from app.core.logger import set_logger
 
@@ -28,7 +29,10 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"]
     )
-
+    @app.get("/", include_in_schema=False)
+    def root():
+        return RedirectResponse(url="/api/v1/docs")
+        
     app.include_router(sb_router, prefix="/api/v1", tags=["v1"])
 
     return app
