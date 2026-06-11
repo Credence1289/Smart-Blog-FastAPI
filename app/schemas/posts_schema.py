@@ -3,8 +3,6 @@ from typing import Optional
 from datetime import datetime
 
 class PostCreate(BaseModel):
-    username : Optional[str] = None
-    post_id : Optional[int] = None
     content_type : str
     title : str
     post : str

@@ -7,6 +7,7 @@ logger = logging.getLogger(__name__)
 
 from app.core.token import decode_token
 from app.db.session import get_db
+from app.models.models import User
 from app.models import models
 
 

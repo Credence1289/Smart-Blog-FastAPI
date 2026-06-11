@@ -9,6 +9,7 @@ from app.db.session import get_db
 from app.core.hashing import hash_password, verify_password
 from app.core.token import create_access_token, decode_token
 from app.core.gate import current_user
+from app.models.models import User, Post
 from app.models import models
 
 

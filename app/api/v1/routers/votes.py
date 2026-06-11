@@ -1,0 +1,84 @@
+from fastapi import APIRouter, Depends,HTTPException
+from sqlalchemy import func
+from sqlalchemy.orm import Session
+import logging
+from enum import Enum
+
+from app.models.models import User, Post, Vote
+from app.models import models
+from app.db.session import get_db
+from app.schemas.upvote_schema import VoteCreate
+from app.core.gate import current_user
+from app.models.models import User, Post, Vote
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter()
+
+@router.post("/post/{post_id}/vote")
+def upvote_post(
+        post_id:int,
+        new_vote: VoteCreate,
+        db: Session = Depends(get_db),
+        current:dict = Depends(current_user)
+):
+    post = (
+        db.query(models.Post)
+        .filter(Post.post_id == post_id)
+        .first()
+    )
+    if not post:
+        logger.error(f"post {post_id} not found")
+        raise HTTPException(
+            status_code=404,
+            detail="Post not found"
+        )
+
+    existing_vote = (
+        db.query(models.Vote)
+        .filter_by(
+            post_id = post_id,
+            user_id = current["user"].user_id
+        )
+        .first()
+    )
+    #CREATES NEW VOTE
+    if not existing_vote:
+        db.add(Vote(
+            user_id = current["user"].user_id,
+            post_id = post_id,
+            vote=new_vote.vote
+        ))
+        db.commit()
+        return {f"Vote creates for {post_id}"}
+
+    #IF ALREADY VOTED THEN IT REMOVES THE VOTE
+    if existing_vote.vote == new_vote:
+        db.delete(existing_vote)
+        db.commit()
+        return {f"Vote removed for {post_id}"}
+
+
+    existing_vote.vote = new_vote.vote
+    db.commit()
+    return {f"Vote updated for {post_id}"}
+
+
+@router.get("/post/{post_id}/votes")
+def get_votes(post_id: int, db: Session = Depends(get_db)):
+
+    upvotes = db.query(Vote).filter_by(
+        post_id=post_id,
+        vote=1
+    ).count()
+
+    downvotes = db.query(Vote).filter_by(
+        post_id=post_id,
+        vote=-1
+    ).count()
+
+    return {
+        "upvotes": upvotes,
+        "downvotes": downvotes
+    }
+
