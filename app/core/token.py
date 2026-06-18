@@ -11,7 +11,7 @@ SECRET_KEY = settings.SECRET_KEY   #python3  -> import secrets -> secret.token_h
 ALGORITHM = settings.ALGORITHM
 ACCESS_TOKEN_EXPIRY_MIN = settings.ACCESS_TOKEN_EXPIRY_MIN
 
-def create_access_token(
+def create_token(
         user_id : int,
         role : str,
         expiry : timedelta = None,

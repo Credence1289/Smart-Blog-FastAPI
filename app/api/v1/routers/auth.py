@@ -3,15 +3,16 @@ from sqlalchemy.orm import Session
 from fastapi.security import OAuth2PasswordRequestForm
 import logging
 
+from app.schemas.refresh_token_schema import RefreshTokenReq
 from app.schemas.users_schema import UserIn, UserOut
 from app.db.session import get_db
 from app.core.hashing import hash_password, verify_password
-from app.core.token import create_access_token, decode_token
+from app.core.token import create_token, decode_token
 from app.core.gate import current_user
 from app.models import models
 from datetime import timedelta
+from app.core.config import settings
 
-REFRESH_TOKEN_EXPIRY = 7
 
 router = APIRouter()
 
@@ -67,13 +68,13 @@ def login_user(
         logger.warning("Authentication failed for username%s", form_data.username)
         raise HTTPException(status_code=401, detail="Invalid Credentials")
 
-    access_token = create_access_token(user_id=user.user_id, role="user")
+    access_token = create_token(user_id=user.user_id, role="user")
 
-    refresh_token = create_access_token(
+    refresh_token = create_token(
         user_id=user.user_id,
         role="user",
         refresh = True,
-        expiry = timedelta(days=REFRESH_TOKEN_EXPIRY)
+        expiry = timedelta(days=settings.REFRESH_TOKEN_EXPIRY)
     )
     logger.info(f"User successfully logged in ")
 
@@ -81,5 +82,33 @@ def login_user(
         "username": user.username,
         "access_token": access_token,
         "refresh_token": refresh_token,
+        "token_type": "bearer"
+    }
+
+@router.post("/user/refresh")
+def refresh_access_token(
+    data: RefreshTokenReq
+):
+    payload = decode_token(data.refresh_token)
+
+    if payload is None:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid refresh token"
+        )
+
+    if payload.get("refresh") is not True:
+        raise HTTPException(
+            status_code=401,
+            detail="Not a refresh token"
+        )
+
+    new_access_token = create_token(
+        user_id=payload["user_id"],
+        role=payload["role"]
+    )
+
+    return {
+        "access_token": new_access_token,
         "token_type": "bearer"
     }

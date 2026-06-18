@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     LOG_TOKEN:str = Field(..., env="LOG_TOKEN")
     ALGORITHM:str = Field("HS256", env="ALGORITHM")
     ACCESS_TOKEN_EXPIRY_MIN:int = Field(30, env="ACCESS_TOKEN_EXPIRY_MIN")
+    REFRESH_TOKEN_EXPIRY:int = Field(7, env="REFRESH_TOKEN_EXPIRY")
 
     class Config:
         env_file = ".env"
