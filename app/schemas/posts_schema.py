@@ -8,7 +8,7 @@ class PostCreate(BaseModel):
     post : str
 
 class PostShow(BaseModel):
-    post_id : Optional[int] = None
+    post_id : int
     username: str
     content_type: str
     title: str

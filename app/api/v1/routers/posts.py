@@ -17,7 +17,7 @@ router = APIRouter()
 
 logger = logging.getLogger(__name__)
 
-@router.post("/post")
+@router.post("/posts")
 def create_post(
      post: PostCreate,
      db: Session = Depends(get_db),
@@ -42,12 +42,10 @@ def create_post(
         }
     )
 
-    return new_post
-    return {"Message": "Post Created"}
-
+    return {"Message" : "Post successfully created!!!"}
 
 # Current user's posts
-@router.get("/post", response_model=list[PostShow])
+@router.get("/posts/me", response_model=list[PostShow])
 def show_my_posts(
     db: Session = Depends(get_db),
     current: dict = Depends(current_user)
@@ -71,7 +69,26 @@ def show_my_posts(
         for p in posts
     ]
 
+@router.get("/posts/{post_id}", response_model=PostShow)
+def show_post(
+        post_id: int,
+        db:Session = Depends(get_db),
+        current:dict = Depends(current_user),
+):
+    post = (
+        db.query(models.Post)
+        .filter(models.Post.post_id == post_id)
+        .first()
+    )
+    if not post:
+        logger.info("Post not found")
+        raise HTTPException(
+            status_code=404,
+            detail="Post not found"
+        )
+    logger.info(f"Post fetched by {current['user'].username}")
 
+    return post
 
 @router.get("/posts", response_model=list[PostShow])
 def show_all_posts(
@@ -82,7 +99,7 @@ def show_all_posts(
 
     query = db.query(models.Post).join(models.User)
 
-    if content_type and content_type.lower() != "all":
+    if content_type.lower() != "all":
         query = query.filter(
             models.Post.content_type == content_type
         )
@@ -90,13 +107,13 @@ def show_all_posts(
     posts = query.all()
 
     if not posts:
-        logger.info(f"No posts found for content type=%s", content_type)
+        logger.info(f"No posts found")
 
         raise HTTPException(
             status_code=404,
             detail="Posts not found"
         )
-    logger.info(f"Posts fetched by {current['user'].user_id}")
+    logger.info(f"Posts fetched by {current['user'].username} ")
 
     return [
         {
@@ -111,7 +128,7 @@ def show_all_posts(
     ]
 
 
-@router.put("/post/{post_id}")
+@router.patch("/posts/{post_id}")
 def update_post(
     post_id:int,
     post: PostUpdate,
@@ -124,42 +141,47 @@ def update_post(
         .first()
     )
     if not existing_post:
-        logger.warning(f"Post not found: %s", post_id)
+        logger.warning("Post not found")
         raise HTTPException(status_code=404, detail="Post not found")
+
     if existing_post.user_id != current["user"].user_id:
-        logger.warning(f"Invalid user")
+        logger.warning("Invalid user")
         raise HTTPException(status_code=403, detail="Not authorized to edit this post")
 
     update_data = post.model_dump(exclude_unset=True)
 
-    if post.title is not None:
-        existing_post.title = post.title
+    for field, value in update_data.items(): #removes fields the user didn't send.
+        setattr(existing_post, field, value) #Set the attribute whose name is stored in field
 
-    if post.post is not None:
-        existing_post.post = post.post
-
-    if post.content_type is not None:
-        existing_post.content_type = post.content_type
+    # if post.title is not None:
+    #     existing_post.title = post.title
+    #
+    # if post.post is not None:
+    #     existing_post.post = post.post
+    #
+    # if post.content_type is not None:
+    #     existing_post.content_type = post.content_type
 
     db.commit()
     db.refresh(existing_post)
-    logger.info(f"Post {existing_post.post_id} is successfully updated")
-    return {"Message": "Post Updated"}
+    logger.info("Post is successfully updated")
+
+    return {"Message": "Post Updated "}
 
 
-@router.delete("/post")
+@router.delete("/posts")
 def delete_all_posts(
     db: Session = Depends(get_db),
     current: dict = Depends(current_user)
 ):
     db.query(models.Post).filter(models.Post.user_id == current["user"].user_id).delete()
     db.commit()
-    logger.info("Posts are successfully deleted")
+    logger.info("Posts successfully deleted")
 
-    return {"Message": "Posts Deleted"}
+    return {"Message": "Posts successfully deleted"}
 
 
-@router.delete("/post/{post_id}")
+@router.delete("/posts/{post_id}")
 def delete_post(
     post_id: int,
     db: Session = Depends(get_db),
@@ -173,11 +195,13 @@ def delete_post(
     if not post:
         logger.error("Post not found")
         raise HTTPException(status_code=404, detail="Post not found")
+
     if post.user_id != current["user"].user_id:
         logger.warning(f"Invalid user")
         raise HTTPException(status_code=403, detail="Not authorized to delete this post")
 
     db.delete(post)
     db.commit()
-    logger.info("Post is successfully deleted")
+    logger.info(f"Post is successfully deleted")
+
     return {"Message": "Post Deleted"}

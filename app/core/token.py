@@ -7,7 +7,7 @@ logger = logging.getLogger(__name__)
 
 from app.core.config import settings
 
-SECRET_KEY = settings.SECRET_KEY
+SECRET_KEY = settings.SECRET_KEY   #python3  -> import secrets -> secret.token_hex(16)
 ALGORITHM = settings.ALGORITHM
 ACCESS_TOKEN_EXPIRY_MIN = settings.ACCESS_TOKEN_EXPIRY_MIN
 

@@ -9,6 +9,9 @@ from app.core.hashing import hash_password, verify_password
 from app.core.token import create_access_token, decode_token
 from app.core.gate import current_user
 from app.models import models
+from datetime import timedelta
+
+REFRESH_TOKEN_EXPIRY = 7
 
 router = APIRouter()
 
@@ -47,7 +50,7 @@ def register_user(
     db.commit()
     db.refresh(new_user)
     logger.info("User successfully register")
-    return new_user
+    return {"Message" : f"User successfully created!!! {new_user}"}
 
 
 @router.post("/login")
@@ -65,5 +68,18 @@ def login_user(
         raise HTTPException(status_code=401, detail="Invalid Credentials")
 
     access_token = create_access_token(user_id=user.user_id, role="user")
-    logger.info(f"User with {user.user_id} successfully login")
-    return {"access_token": access_token, "token_type": "bearer"}
+
+    refresh_token = create_access_token(
+        user_id=user.user_id,
+        role="user",
+        refresh = True,
+        expiry = timedelta(days=REFRESH_TOKEN_EXPIRY)
+    )
+    logger.info(f"User successfully logged in ")
+
+    return {
+        "username": user.username,
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+        "token_type": "bearer"
+    }

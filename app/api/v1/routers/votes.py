@@ -50,22 +50,35 @@ def upvote_post(
             vote=new_vote.vote
         ))
         db.commit()
-        return {f"Vote creates for {post_id}"}
+        return {"Message": f"Vote created for {post_id}"}
 
     #IF ALREADY VOTED THEN IT REMOVES THE VOTE
-    if existing_vote.vote == new_vote:
+    if existing_vote.vote == new_vote.vote:
         db.delete(existing_vote)
         db.commit()
-        return {f"Vote removed for {post_id}"}
+        return {"Message": f"Vote removed for {post_id}"}
 
 
     existing_vote.vote = new_vote.vote
     db.commit()
-    return {f"Vote updated for {post_id}"}
+    return {"Message": f"Vote updated for {post_id}"}
 
 
 @router.get("/post/{post_id}/votes")
-def get_votes(post_id: int, db: Session = Depends(get_db)):
+def get_votes(
+        post_id: int,
+        db: Session = Depends(get_db),
+        current:dict=Depends(current_user)
+):
+
+    user = (
+        db.query(models.Post)
+        .filter(models.Post.user_id == current["user"].user_id)
+        .first()
+    )
+    if not user:
+        logger.info("User is not logged in")
+        return {"Message" : "Login to see votes"}
 
     upvotes = db.query(Vote).filter_by(
         post_id=post_id,

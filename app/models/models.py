@@ -11,7 +11,7 @@ class User(Base):
 
     user_id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True, index=True)
     name: Mapped[str] = mapped_column(String)
-    username: Mapped[str] = mapped_column(String)
+    username: Mapped[str] = mapped_column(String, unique=True)
     email: Mapped[str] = mapped_column(String, unique=True)
     hashed_password: Mapped[str] = mapped_column(String, nullable=False)
 
@@ -24,9 +24,9 @@ class Post(Base):
     post_id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True, index=True)
     user_id = mapped_column(ForeignKey("users.user_id", ondelete="CASCADE"), nullable=False)
 
-    content_type: Mapped[str] = mapped_column(String(20))
+    content_type: Mapped[str] = mapped_column(String(50))
     title: Mapped[str] = mapped_column(String(20))
-    post: Mapped[str] = mapped_column(String(500))
+    post: Mapped[str] = mapped_column(String(5000))
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     user = relationship("User", back_populates="posts")
@@ -40,7 +40,7 @@ class Vote(Base):
     post_id: Mapped[int] = mapped_column(ForeignKey("posts.post_id", ondelete="CASCADE"))
     user_id: Mapped[int] = mapped_column(ForeignKey("users.user_id", ondelete="CASCADE"))
 
-    vote: Mapped[int] = mapped_column(Integer)  # 1 or -1
+    vote: Mapped[int] = mapped_column(Integer, unique=False)  # 1 or -1
 
     user = relationship("User", back_populates="votes")
     post = relationship("Post", back_populates="votes")
