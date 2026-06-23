@@ -46,3 +46,12 @@ typing-inspection==0.4.2
 typing_extensions==4.15.0
 urllib3==2.6.3
 uvicorn==0.41.0
+
+
+
+{
+  "username": "alka",
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoxLCJyb2xlIjoidXNlciIsImV4cCI6MTc4MjI0NDM2NywianRpIjoiOGI3NDYxNTItODMzNS00MzhhLTg0MDAtMDk0ZmI2NzY1YTQ2IiwicmVmcmVzaCI6ZmFsc2V9.83J2j-BjFZoUJWfGFB8KiwhI17klip3Ml99WpSygN8c",
+  "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoxLCJyb2xlIjoidXNlciIsImV4cCI6MTc4Mjg0NzM2NywianRpIjoiODA1NGI4MmMtNmQ1ZC00ZWMxLTkzY2ItY2E2MzZmMTBlMTI5IiwicmVmcmVzaCI6dHJ1ZX0.baKKhsojyWQOiFMeulKuWgtq5iMG0mLIPFlenOBEuE0",
+  "token_type": "bearer"
+}

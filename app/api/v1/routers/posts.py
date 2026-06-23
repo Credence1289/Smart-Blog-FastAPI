@@ -118,7 +118,7 @@ def show_all_posts(
     return [
         {
             "post_id": p.post_id,
-            "username": p.user.username,
+            "username": p.users.username,
             "content_type": p.content_type,
             "title": p.title,
             "post": p.post,
@@ -148,19 +148,19 @@ def update_post(
         logger.warning("Invalid user")
         raise HTTPException(status_code=403, detail="Not authorized to edit this post")
 
-    update_data = post.model_dump(exclude_unset=True)
-
-    for field, value in update_data.items(): #removes fields the user didn't send.
-        setattr(existing_post, field, value) #Set the attribute whose name is stored in field
-
-    # if post.title is not None:
-    #     existing_post.title = post.title
+    # update_data = post.model_dump(exclude_unset=True)
     #
-    # if post.post is not None:
-    #     existing_post.post = post.post
-    #
-    # if post.content_type is not None:
-    #     existing_post.content_type = post.content_type
+    # for field, value in update_data.items(): #removes fields the user didn't send.
+    #     setattr(existing_post, field, value) #Set the attribute whose name is stored in field
+
+    if post.title is not None:
+        existing_post.title = post.title
+
+    if post.post is not None:
+        existing_post.post = post.post
+
+    if post.content_type is not None:
+        existing_post.content_type = post.content_type
 
     db.commit()
     db.refresh(existing_post)

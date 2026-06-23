@@ -22,18 +22,6 @@ def upvote_post(
         db: Session = Depends(get_db),
         current:dict = Depends(current_user)
 ):
-    post = (
-        db.query(models.Post)
-        .filter(Post.post_id == post_id)
-        .first()
-    )
-    if not post:
-        logger.error(f"post {post_id} not found")
-        raise HTTPException(
-            status_code=404,
-            detail="Post not found"
-        )
-
     existing_vote = (
         db.query(models.Vote)
         .filter_by(
@@ -64,7 +52,7 @@ def upvote_post(
     return {"Message": f"Vote updated for {post_id}"}
 
 
-@router.get("/post/{post_id}/votes")
+@router.get("/post/{post_id}/vote")
 def get_votes(
         post_id: int,
         db: Session = Depends(get_db),
