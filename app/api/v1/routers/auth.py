@@ -18,7 +18,7 @@ router = APIRouter()
 
 logger = logging.getLogger(__name__)
 
-@router.post("/register", response_model=UserOut)
+@router.post("/register")
 def register_user(
     user: UserIn,
     db: Session = Depends(get_db)

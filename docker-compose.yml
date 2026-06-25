@@ -1,0 +1,37 @@
+#PURPOSE - Manage multiple containers docker-compose.yml -> docker compose up -> containers,network,volumes, env
+#Building image ->
+"""
+docker compose up --build -d (building image in detach mode)
+-> docker compose exec app alembic upgrade head(for migrations)
+-> docker compose down(stopping containers)
+-> docker compose up(running an service after building)
+"""
+services:
+  app:
+    build: .
+
+    ports:
+      - "8000:8000"
+
+    env_file:
+      - .env
+
+    depends_on:
+      - db
+
+  db:
+    image: postgres:17
+
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: Qwert@123
+      POSTGRES_DB: smartblog
+
+    ports:
+      - "5432:5432"
+
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:

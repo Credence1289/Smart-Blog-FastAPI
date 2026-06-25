@@ -1,0 +1,66 @@
+# Python
+
+**pycache**/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+
+# Virtual Environments
+
+venv/
+env/
+myenv/
+
+# Environment Variables
+
+.env
+
+# Git
+
+.git
+.gitignore
+
+# IDE
+
+.idea/
+.vscode/
+
+# Testing
+
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Logs
+
+*.log
+
+# OS Files
+
+.DS_Store
+Thumbs.db
+
+# Build Artifacts
+
+build/
+dist/
+*.egg-info/
+
+# Python Cache
+
+.mypy_cache/
+.ruff_cache/
+
+# Database Files
+
+*.db
+*.sqlite3
+
+# Docker
+
+docker-compose.yml
+
+# Documentation
+
+README_draft.md
