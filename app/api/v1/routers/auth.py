@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from fastapi.security import OAuth2PasswordRequestForm
 import logging
 
-from app.schemas.refresh_token_schema import RefreshTokenReq
+from app.schemas.token_schema import RefreshTokenIn, TokenOut, AccessTokenOut
 from app.schemas.users_schema import UserIn, UserOut
 from app.db.session import get_db
 from app.core.hashing import hash_password, verify_password
@@ -18,7 +18,7 @@ router = APIRouter()
 
 logger = logging.getLogger(__name__)
 
-@router.post("/register")
+@router.post("/register", response_model = UserOut)
 def register_user(
     user: UserIn,
     db: Session = Depends(get_db)
@@ -50,11 +50,13 @@ def register_user(
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
+
     logger.info("User successfully register")
-    return {"Message" : f"User successfully created!!"}
+
+    return new_user
 
 
-@router.post("/login")
+@router.post("/login", response_model=TokenOut)
 def login_user(
     db: Session = Depends(get_db),
     form_data: OAuth2PasswordRequestForm = Depends()
@@ -65,7 +67,7 @@ def login_user(
         .first()
     )
     if not user or not verify_password(form_data.password, user.hashed_password):
-        logger.warning("Authentication failed for username%s", form_data.username)
+        logger.warning("Authentication failed for username %s", form_data.username)
         raise HTTPException(status_code=401, detail="Invalid Credentials")
 
     access_token = create_token(user_id=user.user_id, role="user")
@@ -76,18 +78,18 @@ def login_user(
         refresh = True,
         expiry = timedelta(days=settings.REFRESH_TOKEN_EXPIRY)
     )
-    logger.info(f"User successfully logged in ")
+    logger.info(f"User successfully logged in %s", user.username)
 
-    return {
-        "username": user.username,
-        "access_token": access_token,
-        "refresh_token": refresh_token,
-        "token_type": "bearer"
-    }
+    return TokenOut(
+        username=form_data.username,
+        access_token=access_token,
+        refresh_token=refresh_token,
+        token_type="Bearer"
+    )
 
-@router.post("/user/refresh")
+@router.post("/user/refresh", response_model=AccessTokenOut)
 def refresh_access_token(
-    data: RefreshTokenReq
+    data: RefreshTokenIn,
 ):
     payload = decode_token(data.refresh_token)
 
@@ -108,7 +110,7 @@ def refresh_access_token(
         role=payload["role"]
     )
 
-    return {
-        "access_token": new_access_token,
-        "token_type": "bearer"
-    }
+    return AccessTokenOut(
+        access_token=new_access_token,
+        token_type="Bearer"
+    )

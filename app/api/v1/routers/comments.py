@@ -4,11 +4,15 @@ from fastapi import APIRouter,HTTPException, Depends
 from sqlalchemy.orm import Session
 import logging
 from uuid import UUID
+
+from app.schemas.pagination_schema import PaginateCommentsOut
 from app.models import models
 from app.db.session import get_db
 from app.schemas.comments_schema import CommentsIn, CommentsOut, CommentsUpdate
 from app.core.gate import current_user
 from app.models.models import User, Post, Vote, Comment
+from app.dependencies.pagination import pagination_param
+from app.utils.pagination import paginate
 
 logger = logging.getLogger(__name__)
 
@@ -46,9 +50,10 @@ def create_comment(post_id:int,comment: CommentsIn, db: Session = Depends(get_db
         "comment_id": new_comment.comments_id
     }
 
-@router.get("/posts/{post_id}/comments",response_model=List[CommentsOut])
+@router.get("/posts/{post_id}/comments",response_model=PaginateCommentsOut)
 def read_comments(
     post_id: int,
+    pagination=Depends(pagination_param),
     db: Session = Depends(get_db)
 ):
 
@@ -67,16 +72,22 @@ def read_comments(
     comments = (
         db.query(Comment)
         .filter(Comment.post_id == post_id)
-        .all()
+        # .all()
     )
 
     logger.info(
         f"Fetched comments for post {post_id}"
     )
 
-    return comments
+    return paginate(
+        query=comments,
+        page=pagination["page"],
+        size=pagination["size"],
+        key="comments"
 
-@router.patch("/comments/{comment_id}")
+    )
+
+@router.patch("/comments/{comments_id}")
 def update_comment(
     comments_id: UUID,
     comment_data: CommentsUpdate,

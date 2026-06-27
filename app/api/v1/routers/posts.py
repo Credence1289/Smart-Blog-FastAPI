@@ -1,23 +1,26 @@
 from fastapi import APIRouter, HTTPException, Depends
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, Query
+from sqlalchemy import func
 from typing import Optional
 import logging
 
 from app.schemas.posts_schema import PostCreate, PostShow,PostUpdate
 from app.schemas.users_schema import UserIn, UserOut
+from app.schemas.pagination_schema import PaginatePostOut
 from app.db.session import get_db
 from app.core.hashing import hash_password, verify_password
 from app.core.token import create_token, decode_token
 from app.core.gate import current_user
 from app.models.models import User, Post
 from app.models import models
-
+from app.dependencies.pagination import pagination_param
+from app.utils.pagination import paginate
 
 router = APIRouter()
 
 logger = logging.getLogger(__name__)
 
-@router.post("/posts")
+@router.post("/posts", response_model=PostShow)
 def create_post(
      post: PostCreate,
      db: Session = Depends(get_db),
@@ -36,38 +39,36 @@ def create_post(
     logger.info(
         "New post created",
         extra={
-            "post_id": new_post.post_id,
             "user_id": new_post.user_id,
+            "post_id": new_post.post_id,
             "content_type": new_post.content_type,
+            "title": new_post.title,
         }
     )
-
-    return {"Message" : "Post successfully created!!!"}
+    return new_post
 
 # Current user's posts
-@router.get("/posts/me", response_model=list[PostShow])
+@router.get("/posts/me", response_model=PaginatePostOut)
 def show_my_posts(
-    db: Session = Depends(get_db),
-    current: dict = Depends(current_user)
+        pagination=Depends(pagination_param),
+        db: Session = Depends(get_db),
+        current: dict = Depends(current_user)
 ):
     posts = (
         db.query(models.Post)
         .filter(models.Post.user_id == current["user"].user_id)
-        .all()
+        .order_by(models.Post.created_at.desc())
+        # .all()
     )
     logger.info(f"Posts fetched by {current['user'].user_id}")
 
-    return [
-        {
-            "post_id": p.post_id,
-            "username" : current["user"].username,
-            "content_type": p.content_type,
-            "title": p.title,
-            "post": p.post,
-            "created_at": p.created_at,
-        }
-        for p in posts
-    ]
+    # return posts
+    return paginate(
+        query=posts,
+        page=pagination["page"],
+        size=pagination["size"],
+        key="posts"
+    )
 
 @router.get("/posts/{post_id}", response_model=PostShow)
 def show_post(
@@ -90,9 +91,10 @@ def show_post(
 
     return post
 
-@router.get("/posts", response_model=list[PostShow])
+@router.get("/posts", response_model=PaginatePostOut)
 def show_all_posts(
-    content_type: Optional[str] = None,
+    content_type: str = "all",
+    pagination=Depends(pagination_param),
     db: Session = Depends(get_db),
     current: dict = Depends(current_user)
 ):
@@ -104,28 +106,16 @@ def show_all_posts(
             models.Post.content_type == content_type
         )
 
-    posts = query.all()
+    query = query.order_by(models.Post.created_at.desc())
 
-    if not posts:
-        logger.info(f"No posts found")
-
-        raise HTTPException(
-            status_code=404,
-            detail="Posts not found"
-        )
     logger.info(f"Posts fetched by {current['user'].username} ")
 
-    return [
-        {
-            "post_id": p.post_id,
-            "username": p.users.username,
-            "content_type": p.content_type,
-            "title": p.title,
-            "post": p.post,
-            "created_at": p.created_at,
-        }
-        for p in posts
-    ]
+    return paginate(
+        query=query,
+        page=pagination["page"],
+        size=pagination["size"],
+        key="posts"
+    )
 
 
 @router.patch("/posts/{post_id}")
