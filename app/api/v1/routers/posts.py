@@ -1,17 +1,17 @@
 from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.orm import Session, Query
-from sqlalchemy import func
+from sqlalchemy import func, case #lets you call sqlfucntion #if else
 from typing import Optional
 import logging
 
-from app.schemas.posts_schema import PostCreate, PostShow,PostUpdate
+from app.schemas.posts_schema import PostCreate, PostShow,PostUpdate,TrendingPostOut
 from app.schemas.users_schema import UserIn, UserOut
 from app.schemas.pagination_schema import PaginatePostOut
 from app.db.session import get_db
 from app.core.hashing import hash_password, verify_password
 from app.core.token import create_token, decode_token
 from app.core.gate import current_user
-from app.models.models import User, Post
+from app.models.models import User, Post,Comment,Vote
 from app.models import models
 from app.dependencies.pagination import pagination_param
 from app.utils.pagination import paginate
@@ -195,3 +195,43 @@ def delete_post(
     logger.info(f"Post is successfully deleted")
 
     return {"Message": "Post Deleted"}
+
+
+@router.get("/trending",response_model=list[TrendingPostOut] )
+def get_trending_posts(
+    limit: int = 10,
+    db: Session = Depends(get_db),
+):
+    trending_posts = (db.query(Post,
+            (
+                func.sum( #computes the score
+                    case(
+                        (Vote.vote == 1, 1),
+                        (Vote.vote == -1, -1),
+                        else_=0,
+                    )
+                )
+                + func.count(Comment.comments_id) * 2
+            ).label("score"),
+        )
+        .outerjoin(Vote, Vote.post_id == Post.post_id)
+        .outerjoin(Comment, Comment.post_id == Post.post_id)
+        .group_by(Post.post_id)
+        .order_by(func.coalesce(func.sum( #tells how to sort rows
+            case(
+                (Vote.vote == 1, 1),
+                (Vote.vote == -1, -1),
+                else_=0,
+            )
+        ), 0) + func.count(Comment.comments_id) * 2)
+        .limit(limit)
+        .all()
+    )
+
+    return [
+        {
+            "post": post,
+            "score": score,
+        }
+        for post, score in trending_posts
+    ]

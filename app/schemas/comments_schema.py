@@ -16,7 +16,7 @@ class CommentsIn(BaseModel):
 
 class CommentsOut(BaseModel):
     user_id:int
-    post_id:int
+    post_id:int | None
     comments_id:UUID
     comment: str
     created_at:datetime

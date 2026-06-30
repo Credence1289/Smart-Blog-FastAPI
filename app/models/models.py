@@ -11,20 +11,21 @@ class User(Base):
 
     user_id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True, index=True)
     name: Mapped[str] = mapped_column(String(100), nullable=False)
-    username: Mapped[str] = mapped_column(String, unique=True, nullable=False)
+    username: Mapped[str] = mapped_column(String, unique=True, nullable=False, index=True)
     email: Mapped[str] = mapped_column(String, unique=True, nullable=False, index=True)
     hashed_password: Mapped[str] = mapped_column(String, nullable=False)
 
     posts:Mapped[list["Post"]] = relationship(back_populates="users", cascade="all, delete-orphan")
     votes:Mapped[list["Vote"]] = relationship(back_populates="users", cascade="all, delete-orphan")
     comments:Mapped[list["Comment"]] = relationship(back_populates="users", cascade="all, delete-orphan")
+    profiles:Mapped[list["Profile"]] = relationship(back_populates="users", cascade="all, delete-orphan")
 
 class Post(Base):
     __tablename__ = "posts"
 
     post_id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True, index=True)
     user_id = mapped_column(ForeignKey("users.user_id", ondelete="CASCADE"), nullable=False)
-    content_type: Mapped[str] = mapped_column(String(50))
+    content_type: Mapped[str] = mapped_column(String(50), index=True)
     title: Mapped[str] = mapped_column(String(200))
     post: Mapped[str] = mapped_column(String(50000))
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
@@ -36,7 +37,7 @@ class Post(Base):
 class Vote(Base):
     __tablename__ = "votes"
 
-    upvote_id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    upvote_id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4,index=True)
     post_id: Mapped[int] = mapped_column(ForeignKey("posts.post_id", ondelete="CASCADE"), nullable=False)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.user_id", ondelete="CASCADE"), nullable=False)
     vote: Mapped[int] = mapped_column(Integer, nullable=False)  # 1 or -1
@@ -48,7 +49,7 @@ class Vote(Base):
 class Comment(Base):
     __tablename__ = "comments"
 
-    comments_id:Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    comments_id:Mapped[UUID] = mapped_column(primary_key=True, default=uuid4,index=True)
     post_id:Mapped[int] = mapped_column(ForeignKey("posts.post_id", ondelete="CASCADE"), nullable=False)
     user_id:Mapped[int] = mapped_column(ForeignKey("users.user_id", ondelete="CASCADE"), nullable=False)
     comment:Mapped[str] = mapped_column(String(256), nullable = False)
@@ -56,3 +57,13 @@ class Comment(Base):
 
     users:Mapped["User"] = relationship(back_populates="comments")
     posts:Mapped["Post"] = relationship(back_populates="comments")
+
+
+class Profile(Base):
+    __tablename__ = "profiles"
+
+    profile_id:Mapped[UUID] = mapped_column(primary_key=True, default=uuid4,index=True)
+    user_id:Mapped[int] = mapped_column(ForeignKey("users.user_id", ondelete="CASCADE"), unique=True,nullable=False)
+    bio:Mapped[str|None] = mapped_column(String(200), nullable=True)
+
+    users:Mapped["User"] = relationship(back_populates="profiles")

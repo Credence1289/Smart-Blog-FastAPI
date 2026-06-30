@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field, ConfigDict
-from typing import Optional
+from typing import Optional,List
 from datetime import datetime
 
 class PostCreate(BaseModel):
@@ -32,3 +32,11 @@ class PostUpdate(BaseModel):
         extra="forbid",
         str_strip_whitespace=True
     )
+
+class TrendingPostOut(BaseModel):
+    score: int
+    post: PostShow
+
+    model_config = {
+        "from_attributes": True
+    }
