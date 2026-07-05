@@ -1,8 +1,8 @@
-from fastapi import FastAPI, Depends, HTTPException,status
+from fastapi import FastAPI, Depends, HTTPException,status,APIRouter
 import logging
 from sqlalchemy.orm import Session
 
-from app.schemas.users_schema import ProfileIn, ProfileOut,ProfileUpdate
+from app.schemas.profile_schema import ProfileIn, ProfileOut,ProfileUpdate
 from app.db.session import get_db
 from app.core.gate import current_user
 from app.models.models import Profile
@@ -11,22 +11,22 @@ from app.models.models import User, Profile, Post
 from uuid import UUID
 from datetime import timedelta
 
-router = APIRouter()
-
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/profile", tags=["Profile"])
+router = APIRouter()
 
 
 @router.post("/me",response_model=ProfileOut,status_code=status.HTTP_201_CREATED,)
 def create_profile(
     profile: ProfileIn,
     db: Session = Depends(get_db),
-    current: User = Depends(current_user),
+    current: dict = Depends(current_user),
 ):
+    user = current["user"]
+
     existing_profile = (
         db.query(Profile)
-        .filter(Profile.user_id == current.user_id)
+        .filter(Profile.user_id == user.user_id)
         .first()
     )
 
@@ -36,8 +36,8 @@ def create_profile(
             detail="Profile already exists."
         )
 
-    new_profile = Profile(
-        user_id=current.user_id,
+    new_profile = models.Profile(
+        user_id=user.user_id,
         bio=profile.bio,
     )
 
@@ -46,22 +46,22 @@ def create_profile(
     db.refresh(new_profile)
 
     return {
-        "name": current.name,
-        "username": current.username,
-        "email": current.email,
+        "name": user.name,
+        "username": user.username,
+        "email": user.email,
         "bio": new_profile.bio,
-        "posts": current.posts,
+        "posts": user.posts,
     }
 
 
 @router.get("/me", response_model=ProfileOut)
 def get_my_profile(
     db: Session = Depends(get_db),
-    current: User = Depends(current_user),
+    current: dict = Depends(current_user),
 ):
     profile = (
         db.query(Profile)
-        .filter(Profile.user_id == current.user_id)
+        .filter(Profile.user_id == current["user"].user_id)
         .first()
     )
 
@@ -72,11 +72,11 @@ def get_my_profile(
         )
 
     return {
-        "name": current.name,
-        "username": current.username,
-        "email": current.email,
+        "name": current["user"].name,
+        "username": current["user"].username,
+        "email": current["user"].email,
         "bio": profile.bio,
-        "posts": current.posts,
+        "posts": current["user"].posts,
     }
 
 
@@ -119,8 +119,8 @@ def update_profile(
     current: User = Depends(current_user),
 ):
     existing_profile = (
-        db.query(Profile)
-        .filter(Profile.user_id == current.user_id)
+        db.query(models.Profile)
+        .filter(Profile.user_id == current["user"].user_id)
         .first()
     )
 
@@ -130,16 +130,16 @@ def update_profile(
             detail="Profile not found."
         )
 
-    if profile.bio is not None:
-        existing_profile.bio = profile.bio
+    if profile.post is not None:
+        existing_profile.post = profile.post
 
     db.commit()
     db.refresh(existing_profile)
 
     return {
-        "name": current.name,
-        "username": current.username,
-        "email": current.email,
+        "name": current["user"].name,
+        "username": current["user"].username,
+        "email": current["user"].email,
         "bio": existing_profile.bio,
-        "posts": current.posts,
+        "posts": current["user"].posts,
     }

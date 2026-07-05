@@ -2,9 +2,7 @@ from fastapi import APIRouter, Depends,HTTPException
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 import logging
-from enum import Enum
 
-from app.models.models import User, Post, Vote
 from app.models import models
 from app.db.session import get_db
 from app.schemas.upvote_schema import VoteCreate
@@ -15,13 +13,22 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-@router.post("/post/{post_id}/vote")
-def upvote_post(
+@router.post("/posts/{post_id}/vote")
+def vote_post(
         post_id:int,
         new_vote: VoteCreate,
         db: Session = Depends(get_db),
         current:dict = Depends(current_user)
 ):
+    existing_post = (
+        db.query(models.Post).filter(models.Post.post_id == post_id).first()
+    )
+    if not existing_post:
+        logger.info("Post not found")
+        raise HTTPException(
+            status_code=404,
+            detail="Post not found"
+        )
     existing_vote = (
         db.query(models.Vote)
         .filter_by(
@@ -52,22 +59,22 @@ def upvote_post(
     return {"Message": f"Vote updated for {post_id}"}
 
 
-@router.get("/post/{post_id}/vote")
+@router.get("/posts/{post_id}/vote")
 def get_votes(
         post_id: int,
         db: Session = Depends(get_db),
         current:dict=Depends(current_user)
 ):
 
-    user = (
-        db.query(models.Post)
-        .filter(models.Post.user_id == current["user"].user_id)
-        .first()
+    existing_post = (
+        db.query(models.Post).filter(models.Post.post_id == post_id).first()
     )
-    if not user:
-        logger.info("User is not logged in")
-        return {"Message" : "Login to see votes"}
-
+    if not existing_post:
+        logger.info("Post not found")
+        raise HTTPException(
+            status_code=404,
+            detail="Post not found"
+        )
     upvotes = db.query(Vote).filter_by(
         post_id=post_id,
         vote=1

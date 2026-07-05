@@ -17,7 +17,7 @@ def pagination_param(
         size:int = Query(
             default=1,
             ge=1,le=20,
-            descriptiom="items per page"
+            description="items per page"
         )
 ):
     return {

@@ -18,7 +18,7 @@ router = APIRouter()
 
 logger = logging.getLogger(__name__)
 
-@router.post("/register", response_model = UserOut)
+@router.post("/register", response_model = UserOut,status_code=status.HTTP_201_CREATED)
 def register_user(
     user: UserIn,
     db: Session = Depends(get_db)

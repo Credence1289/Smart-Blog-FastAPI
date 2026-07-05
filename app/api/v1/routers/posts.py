@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.orm import Session, Query
-from sqlalchemy import func, case #lets you call sqlfucntion #if else
+from sqlalchemy import func, case,desc #lets you call sqlfucntion #if else,
 from typing import Optional
 import logging
 
@@ -26,11 +26,12 @@ def create_post(
      db: Session = Depends(get_db),
      current: dict = Depends(current_user)
 ):
+    user =  current["user"]
     new_post = models.Post(
-        user_id=current["user"].user_id,
         content_type=post.content_type,
         title=post.title,
         post=post.post,
+        user_id=user.user_id,
     )
     db.add(new_post)
     db.commit()
@@ -41,6 +42,7 @@ def create_post(
         extra={
             "user_id": new_post.user_id,
             "post_id": new_post.post_id,
+            "username": new_post.username,
             "content_type": new_post.content_type,
             "title": new_post.title,
         }
@@ -60,7 +62,7 @@ def show_my_posts(
         .order_by(models.Post.created_at.desc())
         # .all()
     )
-    logger.info(f"Posts fetched by {current['user'].user_id}")
+    logger.info(f"Posts fetched by {current['user'].username}")
 
     # return posts
     return paginate(
@@ -74,7 +76,6 @@ def show_my_posts(
 def show_post(
         post_id: int,
         db:Session = Depends(get_db),
-        current:dict = Depends(current_user),
 ):
     post = (
         db.query(models.Post)
@@ -87,7 +88,7 @@ def show_post(
             status_code=404,
             detail="Post not found"
         )
-    logger.info(f"Post fetched by {current['user'].username}")
+    logger.info(f"Post fetched by user")
 
     return post
 
@@ -96,10 +97,9 @@ def show_all_posts(
     content_type: str = "all",
     pagination=Depends(pagination_param),
     db: Session = Depends(get_db),
-    current: dict = Depends(current_user)
 ):
 
-    query = db.query(models.Post).join(models.User)
+    query = db.query(models.Post)
 
     if content_type.lower() != "all":
         query = query.filter(
@@ -108,7 +108,7 @@ def show_all_posts(
 
     query = query.order_by(models.Post.created_at.desc())
 
-    logger.info(f"Posts fetched by {current['user'].username} ")
+    logger.info(f"Posts fetched by a user ")
 
     return paginate(
         query=query,
@@ -118,7 +118,7 @@ def show_all_posts(
     )
 
 
-@router.patch("/posts/{post_id}")
+@router.patch("/posts/{post_id}", response_model=PostShow)
 def update_post(
     post_id:int,
     post: PostUpdate,
@@ -156,7 +156,7 @@ def update_post(
     db.refresh(existing_post)
     logger.info("Post is successfully updated")
 
-    return {"Message": "Post Updated "}
+    return existing_post
 
 
 @router.delete("/posts")
@@ -202,28 +202,41 @@ def get_trending_posts(
     limit: int = 10,
     db: Session = Depends(get_db),
 ):
-    trending_posts = (db.query(Post,
-            (
-                func.sum( #computes the score
-                    case(
-                        (Vote.vote == 1, 1),
-                        (Vote.vote == -1, -1),
-                        else_=0,
-                    )
+    #vote_score
+    vote_scores = (
+        db.query(
+            Vote.post_id.label("post_id"),
+            func.sum( #func use to use aggregation fucntions in sql
+                case(
+                    (Vote.vote == 1, 1),
+                    (Vote.vote == -1, -1),
+                    else_=0,
                 )
-                + func.count(Comment.comments_id) * 2
-            ).label("score"),
+            ).label("vote_score"),
         )
-        .outerjoin(Vote, Vote.post_id == Post.post_id)
-        .outerjoin(Comment, Comment.post_id == Post.post_id)
-        .group_by(Post.post_id)
-        .order_by(func.coalesce(func.sum( #tells how to sort rows
-            case(
-                (Vote.vote == 1, 1),
-                (Vote.vote == -1, -1),
-                else_=0,
-            )
-        ), 0) + func.count(Comment.comments_id) * 2)
+        .group_by(Vote.post_id)
+        .subquery()
+    )
+
+    #comment score
+    comment_counts = (
+        db.query(
+            Comment.post_id.label("post_id"),
+            func.count(Comment.comments_id).label("comment_count"),
+        )
+        .group_by(Comment.post_id)
+        .subquery()
+    )
+
+    score_expr = func.coalesce(vote_scores.c.vote_score, 0) + func.coalesce(
+        comment_counts.c.comment_count, 0
+    ) * 2
+
+    trending_posts = (
+        db.query(Post, score_expr.label("score"))
+        .outerjoin(vote_scores, vote_scores.c.post_id == Post.post_id)
+        .outerjoin(comment_counts, comment_counts.c.post_id == Post.post_id)
+        .order_by(desc(score_expr))
         .limit(limit)
         .all()
     )

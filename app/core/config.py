@@ -8,6 +8,9 @@ class Settings(BaseSettings):
     ALGORITHM:str = Field("HS256", env="ALGORITHM")
     ACCESS_TOKEN_EXPIRY_MIN:int = Field(30, env="ACCESS_TOKEN_EXPIRY_MIN")
     REFRESH_TOKEN_EXPIRY:int = Field(7, env="REFRESH_TOKEN_EXPIRY")
+    POSTGRES_USER: str
+    POSTGRES_PASSWORD: str
+    POSTGRES_DB: str
 
     class Config:
         env_file = ".env"

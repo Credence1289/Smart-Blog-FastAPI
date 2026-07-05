@@ -1,4 +1,4 @@
-from datetime import timedelta, datetime
+from datetime import timedelta, datetime, timezone
 from jose import jwt, JWTError
 import uuid
 import logging
@@ -20,7 +20,7 @@ def create_token(
     payload = {
         "user_id": user_id,
         "role": role,
-        "exp": datetime.utcnow() + (
+        "exp": datetime.now(timezone.utc) + (
             expiry if expiry is not None else timedelta(minutes=ACCESS_TOKEN_EXPIRY_MIN)
         ),
         "jti": str(uuid.uuid4()),

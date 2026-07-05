@@ -18,8 +18,9 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-@router.post("/posts/{post_id}/comments")
+@router.post("/posts/{post_id}/comments", response_model=CommentsOut)
 def create_comment(post_id:int,comment: CommentsIn, db: Session = Depends(get_db), current: dict = Depends(current_user)):
+    user = current["user"]
     post = (
         db.query(models.Post)
         .filter(models.Post.post_id == post_id)
@@ -34,7 +35,7 @@ def create_comment(post_id:int,comment: CommentsIn, db: Session = Depends(get_db
     new_comment = Comment(
         comment=comment.comment,
         post_id=post_id,
-        user_id=current["user"].user_id
+        user_id=user.user_id,
     )
 
     db.add(new_comment)
@@ -45,10 +46,14 @@ def create_comment(post_id:int,comment: CommentsIn, db: Session = Depends(get_db
         f"User {current['user'].user_id} commented on post {post_id}"
     )
 
-    return {
-        "message": "Comment created successfully",
-        "comment_id": new_comment.comments_id
-    }
+    return CommentsOut(
+        user_id=new_comment.user_id,
+        post_id=new_comment.post_id,
+        username=user.username,
+        comments_id=new_comment.comments_id,
+        comment=new_comment.comment,
+        created_at=new_comment.created_at,
+    )
 
 @router.get("/posts/{post_id}/comments",response_model=PaginateCommentsOut)
 def read_comments(
@@ -131,7 +136,7 @@ def update_comment(
         "message": "Comment updated successfully"
     }
 
-@router.delete("/comments/{comment_id}")
+@router.delete("/comments/{comments_id}")
 def delete_comment(
     comments_id: UUID,
     db: Session = Depends(get_db),

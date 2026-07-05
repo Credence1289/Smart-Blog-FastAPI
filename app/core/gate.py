@@ -25,6 +25,15 @@ def current_user(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token"
         )
+    if payload.get("refresh") is True:
+        logger.warning(
+            "Refresh token used on protected route: user_id=%s",
+            payload.get("user_id")
+        )
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Refresh tokens cannot be used to access protected routes"
+        )
 
     # Get user_id and role from payload
     user_id = payload.get("user_id")
@@ -32,8 +41,8 @@ def current_user(
 
     if not user_id or not role:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token payload"
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not Found"
         )
 
     if role == "user":
@@ -41,8 +50,8 @@ def current_user(
         if not user:
             logger.warning("User not found : user_id=%s", user_id)
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found"
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Could not validate credentials"
             )
         return {"user": user, "role": role, "payload": payload}
 

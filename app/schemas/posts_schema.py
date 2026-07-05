@@ -14,6 +14,7 @@ class PostCreate(BaseModel):
 
 class PostShow(BaseModel):
     post_id : int
+    username: str
     content_type: str
     title: str
     post: str
