@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, Depends
-from sqlalchemy.orm import Session, Query
-from sqlalchemy import func, case,desc #lets you call sqlfucntion #if else,
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, func,delete, case,desc #lets you call sqlfucntion #if else,
+from sqlalchemy.orm import selectinload
 from typing import Optional
 import logging
 
@@ -21,12 +22,13 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 @router.post("/posts", response_model=PostShow)
-def create_post(
+async def create_post(
      post: PostCreate,
-     db: Session = Depends(get_db),
+     db: AsyncSession = Depends(get_db),
      current: dict = Depends(current_user)
 ):
     user =  current["user"]
+
     new_post = models.Post(
         content_type=post.content_type,
         title=post.title,
@@ -34,15 +36,25 @@ def create_post(
         user_id=user.user_id,
     )
     db.add(new_post)
-    db.commit()
-    db.refresh(new_post)
+    await db.commit()
+    # await db.refresh(new_post, attribute_names="user") or
+    result = await db.execute(
+        select(models.Post)
+        .options(selectinload(models.Post.user))
+        .where(models.Post.post_id == new_post.post_id)
+    )
+    new_post = result.scalar_one()
+    #is more consistent with your codebase's existing style and less error-prone
+    # if PostShow grows more nested relationships later (comments, votes, etc.)
+    # — you just add more .options(selectinload(...)) to one query instead of
+    # remembering to refresh(attribute_names=[...]) for each one.
 
     logger.info(
         "New post created",
         extra={
-            "user_id": new_post.user_id,
+            "user_id": user.user_id,
             "post_id": new_post.post_id,
-            "username": new_post.username,
+            "username": user.username,
             "content_type": new_post.content_type,
             "title": new_post.title,
         }
@@ -51,37 +63,47 @@ def create_post(
 
 # Current user's posts
 @router.get("/posts/me", response_model=PaginatePostOut)
-def show_my_posts(
+async def show_my_posts(
         pagination=Depends(pagination_param),
-        db: Session = Depends(get_db),
+        db: AsyncSession = Depends(get_db),
         current: dict = Depends(current_user)
 ):
-    posts = (
-        db.query(models.Post)
-        .filter(models.Post.user_id == current["user"].user_id)
+    user = current["user"]
+
+    #You expect multiple rows (a list of posts)
+    stmt = (
+        select(models.Post)
+        .options(selectinload(models.Post.user))
+        .where(models.Post.user_id == user.user_id)
         .order_by(models.Post.created_at.desc())
-        # .all()
     )
-    logger.info(f"Posts fetched by {current['user'].username}")
+    result = await db.execute(stmt)
+    post = result.scalars().all()
+
+    logger.info(f"Posts fetched by {user.username}")
 
     # return posts
-    return paginate(
-        query=posts,
+    return await paginate(
+        db=db,
+        stmt=stmt,
         page=pagination["page"],
         size=pagination["size"],
         key="posts"
     )
 
 @router.get("/posts/{post_id}", response_model=PostShow)
-def show_post(
+async def show_post(
         post_id: int,
-        db:Session = Depends(get_db),
+        db:AsyncSession = Depends(get_db),
 ):
-    post = (
-        db.query(models.Post)
-        .filter(models.Post.post_id == post_id)
-        .first()
+    #You expect a single row — fetching by primary key or unique field
+    result = await db.execute(
+        select(models.Post)
+        .options(selectinload(models.Post.user))
+        .where(models.Post.post_id == post_id)
     )
+    post = result.scalar_one_or_none()
+
     if not post:
         logger.info("Post not found")
         raise HTTPException(
@@ -93,25 +115,29 @@ def show_post(
     return post
 
 @router.get("/posts", response_model=PaginatePostOut)
-def show_all_posts(
+async def show_all_posts(
     content_type: str = "all",
     pagination=Depends(pagination_param),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ):
 
-    query = db.query(models.Post)
+    stmt = (
+        select(models.Post)
+        .options(selectinload(models.Post.user))
+        .order_by(models.Post.created_at.desc())
+    )
 
-    if content_type.lower() != "all":
-        query = query.filter(
-            models.Post.content_type == content_type
-        )
+    if content_type != "all":
+        stmt = stmt.where(models.Post.content_type == content_type)
 
-    query = query.order_by(models.Post.created_at.desc())
+    result = await db.execute(stmt)
+    post = result.scalars().all()
 
     logger.info(f"Posts fetched by a user ")
 
-    return paginate(
-        query=query,
+    return await paginate(
+        db=db,
+        stmt=stmt,
         page=pagination["page"],
         size=pagination["size"],
         key="posts"
@@ -119,17 +145,19 @@ def show_all_posts(
 
 
 @router.patch("/posts/{post_id}", response_model=PostShow)
-def update_post(
+async def update_post(
     post_id:int,
     post: PostUpdate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current: dict = Depends(current_user)
 ):
-    existing_post = (
-        db.query(models.Post)
-        .filter(models.Post.post_id == post_id)
-        .first()
+    result = await db.execute(
+        select(models.Post)
+        .options(selectinload(models.Post.user))
+        .where(models.Post.post_id == post_id)
     )
+    existing_post = result.scalar_one_or_none()
+
     if not existing_post:
         logger.warning("Post not found")
         raise HTTPException(status_code=404, detail="Post not found")
@@ -152,36 +180,46 @@ def update_post(
     if post.content_type is not None:
         existing_post.content_type = post.content_type
 
-    db.commit()
-    db.refresh(existing_post)
+    await db.commit()
+    result = await db.execute(
+        select(models.Post)
+        .options(selectinload(models.Post.user))
+        .where(models.Post.post_id == existing_post.post_id)
+    )
+    existing_post = result.scalar_one()
     logger.info("Post is successfully updated")
 
     return existing_post
 
 
 @router.delete("/posts")
-def delete_all_posts(
-    db: Session = Depends(get_db),
+async def delete_all_posts(
+    db: AsyncSession = Depends(get_db),
     current: dict = Depends(current_user)
 ):
-    db.query(models.Post).filter(models.Post.user_id == current["user"].user_id).delete()
-    db.commit()
+    user = current["user"]
+
+    await db.execute(
+        delete(models.Post).where(models.Post.user_id == user.user_id)
+    )
+    await db.commit()
     logger.info("Posts successfully deleted")
 
     return {"Message": "Posts successfully deleted"}
 
 
 @router.delete("/posts/{post_id}")
-def delete_post(
+async def delete_post(
     post_id: int,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current: dict = Depends(current_user)
 ):
-    post = (
-        db.query(models.Post)
-        .filter(models.Post.post_id == post_id)
-        .first()
+
+    result = await db.execute(
+        select(models.Post).where(models.Post.post_id == post_id)
     )
+    post = result.scalar_one_or_none()
+
     if not post:
         logger.error("Post not found")
         raise HTTPException(status_code=404, detail="Post not found")
@@ -190,23 +228,23 @@ def delete_post(
         logger.warning(f"Invalid user")
         raise HTTPException(status_code=403, detail="Not authorized to delete this post")
 
-    db.delete(post)
-    db.commit()
+    await db.delete(post)
+    await db.commit()
     logger.info(f"Post is successfully deleted")
 
     return {"Message": "Post Deleted"}
 
 
 @router.get("/trending",response_model=list[TrendingPostOut] )
-def get_trending_posts(
+async def get_trending_posts(
     limit: int = 10,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ):
     #vote_score
     vote_scores = (
-        db.query(
+        select(
             Vote.post_id.label("post_id"),
-            func.sum( #func use to use aggregation fucntions in sql
+            func.sum(
                 case(
                     (Vote.vote == 1, 1),
                     (Vote.vote == -1, -1),
@@ -217,10 +255,9 @@ def get_trending_posts(
         .group_by(Vote.post_id)
         .subquery()
     )
-
-    #comment score
+    # comment_score
     comment_counts = (
-        db.query(
+        select(
             Comment.post_id.label("post_id"),
             func.count(Comment.comments_id).label("comment_count"),
         )
@@ -228,18 +265,31 @@ def get_trending_posts(
         .subquery()
     )
 
-    score_expr = func.coalesce(vote_scores.c.vote_score, 0) + func.coalesce(
-        comment_counts.c.comment_count, 0
-    ) * 2
+    score_expr = (
+            func.coalesce(vote_scores.c.vote_score, 0)
+            + func.coalesce(comment_counts.c.comment_count, 0) * 2
+    )
 
-    trending_posts = (
-        db.query(Post, score_expr.label("score"))
-        .outerjoin(vote_scores, vote_scores.c.post_id == Post.post_id)
-        .outerjoin(comment_counts, comment_counts.c.post_id == Post.post_id)
+    stmt = (
+        select(
+            Post,
+            score_expr.label("score")
+        )
+        .options(selectinload(Post.user))
+        .outerjoin(
+            vote_scores,
+            vote_scores.c.post_id == Post.post_id
+        )
+        .outerjoin(
+            comment_counts,
+            comment_counts.c.post_id == Post.post_id
+        )
         .order_by(desc(score_expr))
         .limit(limit)
-        .all()
     )
+
+    result = await db.execute(stmt)
+    trending_posts = result.all()
 
     return [
         {

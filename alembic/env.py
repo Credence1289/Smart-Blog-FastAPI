@@ -9,19 +9,19 @@ from app.models.models import Base
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
-config.set_main_option(
-    "sqlalchemy.url",
-    str(settings.DATABASE_URL).replace("%", "%%")
-)
+db_url = str(settings.DATABASE_URL).replace("%", "%%")
+
+# Swap asyncpg driver for psycopg2 driver for Alembic
+if "postgresql+asyncpg" in db_url:
+    db_url = db_url.replace("postgresql+asyncpg", "postgresql+psycopg2")
+
+config.set_main_option("sqlalchemy.url", db_url)
+
 # Interpret the config file for Python logging.
-# This line sets up loggers basically.
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# add your model's MetaData object here
-# for 'autogenerate' support
-# from myapp import mymodel
-# target_metadata = mymodel.Base.metadata
+# Add your model's MetaData object here
 target_metadata = Base.metadata
 # other values from the config, defined by the needs of env.py,
 # can be acquired:

@@ -15,10 +15,10 @@ class User(Base):
     email: Mapped[str] = mapped_column(String, unique=True, nullable=False, index=True)
     hashed_password: Mapped[str] = mapped_column(String, nullable=False)
 
-    posts:Mapped[list["Post"]] = relationship(back_populates="users", cascade="all, delete-orphan")
-    votes:Mapped[list["Vote"]] = relationship(back_populates="users", cascade="all, delete-orphan")
-    comments:Mapped[list["Comment"]] = relationship(back_populates="users", cascade="all, delete-orphan")
-    profile:Mapped["Profile"] = relationship(back_populates="users", cascade="all, delete-orphan",uselist=True)
+    post:Mapped[list["Post"]] = relationship(back_populates="user", cascade="all, delete-orphan")
+    vote:Mapped[list["Vote"]] = relationship(back_populates="user", cascade="all, delete-orphan")
+    comment:Mapped[list["Comment"]] = relationship(back_populates="user", cascade="all, delete-orphan")
+    profile:Mapped["Profile"] = relationship(back_populates="user", cascade="all, delete-orphan",uselist=True)
 
 class Post(Base):
     __tablename__ = "posts"
@@ -30,13 +30,13 @@ class Post(Base):
     post: Mapped[str] = mapped_column(String(50000))
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
-    users:Mapped["User"] = relationship(back_populates="posts")
-    votes:Mapped[list["Vote"]]= relationship(back_populates="posts", cascade="all, delete-orphan")
-    comments:Mapped[list["Comment"]] = relationship(back_populates="posts", cascade="all, delete-orphan")
+    user:Mapped["User"] = relationship(back_populates="post")
+    vote:Mapped[list["Vote"]]= relationship(back_populates="post", cascade="all, delete-orphan")
+    comment:Mapped[list["Comment"]] = relationship(back_populates="post", cascade="all, delete-orphan")
 
     @property
     def username(self):
-        return self.users.username
+        return self.user.username
         
 class Vote(Base):
     __tablename__ = "votes"
@@ -58,8 +58,8 @@ class Vote(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.user_id", ondelete="CASCADE"), nullable=False)
     vote: Mapped[int] = mapped_column(Integer, nullable=False)  # 1 or -1
 
-    users:Mapped["User"] = relationship(back_populates="votes")
-    posts:Mapped["Post"] = relationship(back_populates="votes")
+    user:Mapped["User"] = relationship(back_populates="vote")
+    post:Mapped["Post"] = relationship(back_populates="vote")
 
 
 class Comment(Base):
@@ -71,12 +71,12 @@ class Comment(Base):
     comment:Mapped[str] = mapped_column(String(500), nullable = False)
     created_at:Mapped[datetime] = mapped_column(DateTime, server_default=func.now() )
 
-    users:Mapped["User"] = relationship(back_populates="comments")
-    posts:Mapped["Post"] = relationship(back_populates="comments")
+    user:Mapped["User"] = relationship(back_populates="comment")
+    post:Mapped["Post"] = relationship(back_populates="comment")
 
     @property
     def username(self):
-        return self.users.username
+        return self.user.username
 
 class Profile(Base):
     __tablename__ = "profile"
@@ -85,8 +85,18 @@ class Profile(Base):
     user_id:Mapped[int] = mapped_column(ForeignKey("users.user_id", ondelete="CASCADE"), unique=True,nullable=False)
     bio:Mapped[str|None] = mapped_column(String(200), nullable=True)
 
-    users:Mapped["User"] = relationship(back_populates="profile")
+    user:Mapped["User"] = relationship(back_populates="profile")
 
     @property
     def username(self):
-        return self.users.username
+        return self.user.username
+
+    @property
+    def name(self):
+        return self.user.name
+
+    @property
+    def email(self):
+        return self.user.email
+
+

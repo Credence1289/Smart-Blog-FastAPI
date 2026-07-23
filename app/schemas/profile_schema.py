@@ -14,9 +14,8 @@ class ProfileUpdate(BaseModel):
 class ProfileOut(BaseModel):
     name: str
     username: str
-    email: EmailStr
+    email: str
     bio: str | None
-    posts: list[PostShow]
 
     model_config = ConfigDict(
         from_attributes=True

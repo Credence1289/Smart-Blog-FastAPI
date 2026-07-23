@@ -1,17 +1,17 @@
 from fastapi import Depends, APIRouter, HTTPException, status
 from sqlalchemy import text
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
 
 router = APIRouter()
 
-@router.get("/health")
-def health_check(
-        db:Session = Depends(get_db)
+@router.get("/app_health")
+async def health_check(
+        db:AsyncSession = Depends(get_db)
 ):
     try:
-        db.execute(text("SELECT 1"))
+        await db.execute(text("SELECT 1"))
 
         return {
             "status": "healthy",
@@ -21,7 +21,7 @@ def health_check(
         }
     except Exception:
         raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            status_code=503,
             detail={
                 "status": "failed",
                 "database": "unavailable"

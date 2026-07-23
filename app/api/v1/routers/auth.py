@@ -1,7 +1,8 @@
 from fastapi import APIRouter, HTTPException, Depends, status
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi.security import OAuth2PasswordRequestForm
 import logging
+from sqlalchemy import select
 
 from app.schemas.token_schema import RefreshTokenIn, TokenOut, AccessTokenOut
 from app.schemas.users_schema import UserIn, UserOut
@@ -19,28 +20,31 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 @router.post("/register", response_model = UserOut,status_code=status.HTTP_201_CREATED)
-def register_user(
+async def register_user(
     user: UserIn,
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
-    existing_user = (
-        db.query(models.User)
-        .filter(models.User.email == user.email)
-        .first()
+    result = await db.execute(
+        select(models.User).where(models.User.email == user.email)
     )
+    existing_user = result.scalar_one_or_none()
+
     if existing_user:
-        logger.info("User already exists")
-        raise HTTPException(status_code=400, detail="User already exists")
-
-    username_exists = (
-        db.query(models.User)
-        .filter(models.User.username == user.username)
-        .first()
+        logger.info("User is already registered")
+        raise HTTPException(
+            status_code=400,
+            detail="User is already registered",
+        )
+    result = await db.execute(
+        select(models.User).where(models.User.username == user.username)
     )
-    if username_exists:
-        logger.info("Username already taken")
-        raise HTTPException(status_code=400, detail="Username already taken")
-
+    username_exist = result.scalar_one_or_none()
+    if username_exist:
+        logger.info("Username is already taken")
+        raise HTTPException(
+            status_code=400,
+            detail="Username is already taken",
+        )
     new_user = models.User(
         name=user.name,
         username=user.username,
@@ -48,24 +52,24 @@ def register_user(
         hashed_password=hash_password(user.password)
     )
     db.add(new_user)
-    db.commit()
-    db.refresh(new_user)
+    await db.commit()
+    await db.refresh(new_user)
 
-    logger.info("User successfully register")
+    logger.info("User registered")
 
     return new_user
 
 
 @router.post("/login", response_model=TokenOut)
-def login_user(
-    db: Session = Depends(get_db),
+async def login_user(
+    db: AsyncSession = Depends(get_db),
     form_data: OAuth2PasswordRequestForm = Depends()
 ):
-    user = (
-        db.query(models.User)
-        .filter(models.User.username == form_data.username)
-        .first()
+    result = await db.execute(
+        select(models.User).where(models.User.username == form_data.username)
     )
+    user = result.scalar_one_or_none()
+
     if not user or not verify_password(form_data.password, user.hashed_password):
         logger.warning("Authentication failed for username %s", form_data.username)
         raise HTTPException(status_code=401, detail="Invalid Credentials")
@@ -81,7 +85,7 @@ def login_user(
     logger.info(f"User successfully logged in %s", user.username)
 
     return TokenOut(
-        username=form_data.username,
+        username=user.username,
         access_token=access_token,
         refresh_token=refresh_token,
         token_type="Bearer"

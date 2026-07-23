@@ -1,6 +1,8 @@
 from fastapi import FastAPI, Depends, HTTPException,status,APIRouter
 import logging
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+from sqlalchemy import select, func
 
 from app.schemas.profile_schema import ProfileIn, ProfileOut,ProfileUpdate
 from app.db.session import get_db
@@ -17,23 +19,23 @@ router = APIRouter()
 
 
 @router.post("/me",response_model=ProfileOut,status_code=status.HTTP_201_CREATED,)
-def create_profile(
+async def create_profile(
     profile: ProfileIn,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current: dict = Depends(current_user),
 ):
     user = current["user"]
 
-    existing_profile = (
-        db.query(Profile)
-        .filter(Profile.user_id == user.user_id)
-        .first()
+    result = await db.execute(
+        select(models.Profile)
+        .where(models.Profile.user_id == user.user_id)
     )
+    existing_profile = result.scalar_one_or_none()
 
     if existing_profile:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="Profile already exists."
+            detail="Profile already created."
         )
 
     new_profile = models.Profile(
@@ -42,104 +44,85 @@ def create_profile(
     )
 
     db.add(new_profile)
-    db.commit()
-    db.refresh(new_profile)
+    await db.commit()
+    result = await db.execute(
+        select(models.Profile)
+        .options(selectinload(models.Profile.user))
+        .where(models.Profile.profile_id == new_profile.profile_id)
+    )
+    new_profile = result.scalar_one()
 
-    return {
-        "name": user.name,
-        "username": user.username,
-        "email": user.email,
-        "bio": new_profile.bio,
-        "posts": user.posts,
-    }
+    return new_profile
 
 
 @router.get("/me", response_model=ProfileOut)
-def get_my_profile(
-    db: Session = Depends(get_db),
+async def get_my_profile(
+    db: AsyncSession = Depends(get_db),
     current: dict = Depends(current_user),
 ):
-    profile = (
-        db.query(Profile)
-        .filter(Profile.user_id == current["user"].user_id)
-        .first()
-    )
+    user = current["user"]
 
-    if not profile:
+    result = await db.execute(
+        select(models.Profile)
+        .where(models.Profile.user_id == user.user_id)
+    )
+    profile = result.scalar_one_or_none()
+
+    if not user or not profile:
+        logger.info(f"Profile not found for {user.user_id}")
         raise HTTPException(
             status_code=404,
-            detail="Profile not found."
+            detail="Profile not found"
         )
 
-    return {
-        "name": current["user"].name,
-        "username": current["user"].username,
-        "email": current["user"].email,
-        "bio": profile.bio,
-        "posts": current["user"].posts,
-    }
+    return profile
 
 
 @router.get("/{username}", response_model=ProfileOut)
-def get_profile(
+async def get_profile(
     username: str,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
+    current:dict = Depends(current_user),
 ):
-    user = (
-        db.query(User)
-        .filter(User.username == username)
-        .first()
+    result = await db.execute(
+        select(models.Profile)
+        .options(selectinload(models.Profile.user))
+        .join(models.User, models.Profile.user_id == models.User.user_id)
+        .where(models.User.username == username)
     )
+    profile = result.scalar_one_or_none()
 
-    if not user:
-        raise HTTPException(
-            status_code=404,
-            detail="User not found."
-        )
+    if not profile:
+        raise HTTPException(status_code=404, detail="Profile not found.")
 
-    if not user.profile:
-        raise HTTPException(
-            status_code=404,
-            detail="Profile not found."
-        )
-
-    return {
-        "name": user.name,
-        "username": user.username,
-        "email": user.email,
-        "bio": user.profile.bio,
-        "posts": user.posts,
-    }
-
+    return profile
 
 @router.patch("/me", response_model=ProfileOut)
-def update_profile(
+async def update_profile(
     profile: ProfileUpdate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current: User = Depends(current_user),
 ):
-    existing_profile = (
-        db.query(models.Profile)
-        .filter(Profile.user_id == current["user"].user_id)
-        .first()
+    user = current["user"]
+
+    result = await db.execute(
+        select(models.Profile).where(models.Profile.user_id == user.user_id)
     )
+    existing_profile = result.scalar_one_or_none()
 
     if not existing_profile:
-        raise HTTPException(
-            status_code=404,
-            detail="Profile not found."
-        )
+        raise HTTPException(status_code=404, detail="Profile not found.")
 
-    if profile.post is not None:
-        existing_profile.post = profile.post
+    if profile.bio is not None:
+        existing_profile.bio = profile.bio
 
-    db.commit()
-    db.refresh(existing_profile)
+    await db.commit()
 
-    return {
-        "name": current["user"].name,
-        "username": current["user"].username,
-        "email": current["user"].email,
-        "bio": existing_profile.bio,
-        "posts": current["user"].posts,
-    }
+    result = await db.execute(
+        select(models.Profile)
+        .options(selectinload(models.Profile.user))
+        .where(models.Profile.profile_id == existing_profile.profile_id)
+    )
+    existing_profile = result.scalar_one()
+
+    return existing_profile

@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine
+from sqlalchemy.ext.asyncio import create_async_engine
 from app.core.config import settings
 import logging
 
@@ -10,7 +10,8 @@ if not DATABASE_URL:
     logger.critical("DATABASE_URL environment variable not set")
     raise RuntimeError("DATABASE_URL is not set")
 
-engine = create_engine(
+AsyncEngine = create_async_engine(
     DATABASE_URL,
+    connect_args={"ssl": "require"},
     echo = False
 )
