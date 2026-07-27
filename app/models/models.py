@@ -18,7 +18,8 @@ class User(Base):
     post:Mapped[list["Post"]] = relationship(back_populates="user", cascade="all, delete-orphan")
     vote:Mapped[list["Vote"]] = relationship(back_populates="user", cascade="all, delete-orphan")
     comment:Mapped[list["Comment"]] = relationship(back_populates="user", cascade="all, delete-orphan")
-    profile:Mapped["Profile"] = relationship(back_populates="user", cascade="all, delete-orphan",uselist=True)
+    profile:Mapped["Profile"] = relationship(back_populates="user", cascade="all, delete-orphan")
+    profile_pic:Mapped["ProfilePic"] = relationship(back_populates="user", cascade="all, delete-orphan")
 
 class Post(Base):
     __tablename__ = "posts"
@@ -86,6 +87,7 @@ class Profile(Base):
     bio:Mapped[str|None] = mapped_column(String(200), nullable=True)
 
     user:Mapped["User"] = relationship(back_populates="profile")
+    profile_pic:Mapped["ProfilePic"] = relationship(back_populates="profile",cascade="all, delete-orphan")
 
     @property
     def username(self):
@@ -100,3 +102,17 @@ class Profile(Base):
         return self.user.email
 
 
+class ProfilePic(Base):
+    __tablename__ = "profile_pic"
+
+    pic_id:Mapped[UUID] = mapped_column(primary_key=True, default=uuid4,index=True)
+    user_id:Mapped[int] = mapped_column(ForeignKey("users.user_id", ondelete="CASCADE"), unique=True,nullable=False)
+    profile_id:Mapped[UUID] = mapped_column(ForeignKey("profile.profile_id", ondelete="CASCADE"), unique=True,nullable=False)
+    original_name:Mapped[str] = mapped_column(String(200), nullable=False)
+    saved_as: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    folder:Mapped[str] = mapped_column(String(200), nullable=False)
+    size:Mapped[int] = mapped_column(default=0, nullable=False)
+    uploaded_at:Mapped[datetime] = mapped_column(default=datetime.now, server_default=func.now())
+
+    user:Mapped["User"] = relationship(back_populates="profile_pic")
+    profile:Mapped["Profile"] = relationship(back_populates="profile_pic")

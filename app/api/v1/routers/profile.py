@@ -47,7 +47,10 @@ async def create_profile(
     await db.commit()
     result = await db.execute(
         select(models.Profile)
-        .options(selectinload(models.Profile.user))
+        .options(
+            selectinload(models.Profile.user),
+            selectinload(models.Profile.profile_pic),
+        )
         .where(models.Profile.profile_id == new_profile.profile_id)
     )
     new_profile = result.scalar_one()
@@ -64,6 +67,10 @@ async def get_my_profile(
 
     result = await db.execute(
         select(models.Profile)
+        .options(
+            selectinload(models.Profile.user),
+            selectinload(models.Profile.profile_pic),
+        )
         .where(models.Profile.user_id == user.user_id)
     )
     profile = result.scalar_one_or_none()
@@ -86,7 +93,10 @@ async def get_profile(
 ):
     result = await db.execute(
         select(models.Profile)
-        .options(selectinload(models.Profile.user))
+        .options(
+            selectinload(models.Profile.user),
+            selectinload(models.Profile.profile_pic),
+        )
         .join(models.User, models.Profile.user_id == models.User.user_id)
         .where(models.User.username == username)
     )
@@ -120,7 +130,10 @@ async def update_profile(
 
     result = await db.execute(
         select(models.Profile)
-        .options(selectinload(models.Profile.user))
+        .options(
+            selectinload(models.Profile.user),
+            selectinload(models.Profile.profile_pic),
+        )
         .where(models.Profile.profile_id == existing_profile.profile_id)
     )
     existing_profile = result.scalar_one()

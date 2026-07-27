@@ -1,6 +1,7 @@
 from pydantic import BaseModel, EmailStr,ConfigDict
-from typing import List
+from typing import List,Optional
 
+from app.schemas.profile_pic_schema import ProfilePicOut
 from app.schemas.posts_schema import PostShow
 
 class ProfileIn(BaseModel):
@@ -12,6 +13,7 @@ class ProfileUpdate(BaseModel):
 
 
 class ProfileOut(BaseModel):
+    profile_pic: Optional[ProfilePicOut] = None
     name: str
     username: str
     email: str
