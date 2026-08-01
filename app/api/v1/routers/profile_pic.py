@@ -40,14 +40,7 @@ async def upsert_profile_pic(
     db: AsyncSession = Depends(get_db),
     current: dict = Depends(current_user),
 ):
-    """
-    Uploads (or replaces) the current user's profile picture.
 
-    Order of operations, same as we discussed:
-    1. Save the NEW file to disk first.
-    2. Update/create the DB row to point at the new file.
-    3. Only then delete the OLD file, once the new one is safely recorded.
-    """
     user = current["user"]
     profile = await _get_profile_or_404(db, user.user_id)
 
@@ -56,14 +49,13 @@ async def upsert_profile_pic(
     )
     existing_pic = result.scalar_one_or_none()
 
-    # Step 1: save the new file (validates type/size, writes to disk)
+    #save the new file
     saved_as, folder, size = await save_profile_pic(file)
 
-    # Remember the old file's location BEFORE we overwrite the row
     old_folder = existing_pic.folder if existing_pic else None
     old_saved_as = existing_pic.saved_as if existing_pic else None
 
-    # Step 2: update or create the DB row to point at the new file
+    # update or create the DB row to point at the new file
     if existing_pic:
         existing_pic.original_name = file.filename
         existing_pic.saved_as = saved_as
@@ -84,7 +76,7 @@ async def upsert_profile_pic(
     await db.commit()
     await db.refresh(pic)
 
-    # Step 3: only now delete the old file, since the DB is confirmed updated
+    #only now delete the old file, since the DB is confirmed updated
     if old_saved_as:
         delete_profile_pic_file(old_folder, old_saved_as)
 
@@ -138,11 +130,6 @@ async def get_profile_pic_file(
     pic_id: str,
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    Public endpoint that serves the actual image bytes -- this is the URL
-    you'd put in an <img src="..."> tag. No auth required: profile pictures
-    are meant to be visible on any user's public profile.
-    """
     result = await db.execute(
         select(models.ProfilePic).where(models.ProfilePic.pic_id == pic_id)
     )

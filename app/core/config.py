@@ -8,9 +8,21 @@ class Settings(BaseSettings):
     ALGORITHM:str = Field("HS256", env="ALGORITHM")
     ACCESS_TOKEN_EXPIRY_MIN:int = Field(30, env="ACCESS_TOKEN_EXPIRY_MIN")
     REFRESH_TOKEN_EXPIRY:int = Field(7, env="REFRESH_TOKEN_EXPIRY")
+
     POSTGRES_USER: str
     POSTGRES_PASSWORD: str
     POSTGRES_DB: str
+
+    RESET_TOKEN_EXPIRE_MIN:str = Field(30, env="RESET_TOKEN_EXPIRE_MIN")
+
+    MAIL_SERVER:str = Field("sandbox.smtp.mailtrap.io",env="MAIL_SERVER")
+    MAIL_PORT:int = Field(2525,env="MAIL_PORT")
+    MAIL_USERNAME:str = Field(...,env="MAIL_USERNAME")
+    MAIL_PASSWORD:str = Field(...,env="MAIL_PASSWORD")
+    MAIL_FROM:str = Field(..., env="MAIL_FROM")
+    MAIL_USE_TLS:bool = Field(...,env="MAIL_USE_TLS")
+
+    FRONTEND_URL:str = Field(...,env="FRONTEND_URL")
 
     class Config:
         env_file = ".env"

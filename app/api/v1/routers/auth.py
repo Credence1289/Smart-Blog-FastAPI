@@ -1,10 +1,10 @@
-from fastapi import APIRouter, HTTPException, Depends, status
+from fastapi import APIRouter, HTTPException, Depends, status,BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi.security import OAuth2PasswordRequestForm
 import logging
 from sqlalchemy import select
 
-from app.schemas.token_schema import RefreshTokenIn, TokenOut, AccessTokenOut
+from app.schemas.token_schema import RefreshTokenIn, TokenOut, AccessTokenOut, ResetPasswordIn,ForgotPasswordIn
 from app.schemas.users_schema import UserIn, UserOut
 from app.db.session import get_db
 from app.core.hashing import hash_password, verify_password
@@ -13,7 +13,7 @@ from app.core.gate import current_user
 from app.models import models
 from datetime import timedelta
 from app.core.config import settings
-
+from app.utils.email_utils import send_email, send_welcome_email,password_reset_link,send_first_post_congrats_email
 
 router = APIRouter()
 
@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 @router.post("/register", response_model = UserOut,status_code=status.HTTP_201_CREATED)
 async def register_user(
     user: UserIn,
+    background_tasks:BackgroundTasks,
     db: AsyncSession = Depends(get_db)
 ):
     result = await db.execute(
@@ -56,7 +57,7 @@ async def register_user(
     await db.refresh(new_user)
 
     logger.info("User registered")
-
+    background_tasks.add_task(send_welcome_email, new_user.email, new_user.name)
     return new_user
 
 
@@ -119,3 +120,55 @@ def refresh_access_token(
         token_type="Bearer"
     )
 
+
+@router.post("/forgot_password")
+async def forgot_password(
+        data:ForgotPasswordIn,
+        background_tasks:BackgroundTasks,
+        db: AsyncSession = Depends(get_db)
+):
+    result = await db.execute(
+        select(models.User).where(models.User.email == data.email)
+    )
+    user = result.scalar_one_or_none()
+
+    if user:
+        reset_token = create_token(
+            user_id=user.user_id,
+            role="password-reset",
+            expiry=timedelta(days=settings.REFRESH_TOKEN_EXPIRY)
+        )
+        background_tasks.add_task(password_reset_link, user.email, reset_token.token)
+        logger.info(f"Password reset requested for {user.user_id}")
+
+    return {"message" : "Reset link has been sent"}
+
+@router.post("/reset_password", response_model=TokenOut)
+async def reset_password(
+        data: ResetPasswordIn,
+        db:AsyncSession = Depends(get_db)
+):
+    payload = decode_token(data.token)
+
+    if payload is None or payload.get("roke") != "password-reset":
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid or expired reset token"
+        )
+    result = await db.execute(
+        select(models.User).where(models.User.user_id == payload["user_id"])
+    )
+    user = result.scalar_one_or_none()
+
+    if not user:
+        raise HTTPException(
+            status_code=404,
+            detail="User not found"
+        )
+    user.password = hash_password(data.new_password)
+    await db.commit()
+    await db.refresh(user)
+
+    logger.info(f"Password reset completed for {payload.user_id}")
+
+    return {"message": "Password reset successful"}

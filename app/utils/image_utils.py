@@ -14,7 +14,7 @@ MAX_PROFILE_PIC_SIZE = 10 * 1024 * 1024
 
 def profile_pic_dir() -> Path:
     target_dir = UPLOAD_ROOT / PROFILE_PIC_SUBFOLDER
-    target_dir.mkdir(parents=True, exist_ok=True)
+    target_dir.mkdir(parents=True, exist_ok=True) # creates it the first time it's needed
     return target_dir
 
 async def save_profile_pic(file: UploadFile) -> tuple[str, str, int]:
@@ -27,11 +27,15 @@ async def save_profile_pic(file: UploadFile) -> tuple[str, str, int]:
 
     target_dir = profile_pic_dir()
     ext = EXT_BY_CONTENT_TYPE[file.content_type]
-    unique_name = f"{uuid.uuid4().hex}{ext}"
+    unique_name = f"{uuid.uuid4().hex}{ext}" # random unique filename, keeps extension
     file_path = target_dir / unique_name
 
     size = 0
+    # version's read/write are await-able, meaning they yield control back to the event loop instead of blocking it.
+
     async with aiofiles.open(file_path, "wb") as buffer:
+        # this is the walrus operator (:=), which assigns and checks a value in one line.
+        # It reads the file in 1MB chunks instead of await file.read() all at once
         while chunk := await file.read(1024 * 1024):  # 1MB at a time
             size += len(chunk)
             if size > MAX_PROFILE_PIC_SIZE:

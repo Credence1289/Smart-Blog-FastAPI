@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func,delete, case,desc #lets you call sqlfucntion #if else,
 from sqlalchemy.orm import selectinload
@@ -16,6 +16,7 @@ from app.models.models import User, Post,Comment,Vote
 from app.models import models
 from app.dependencies.pagination import pagination_param
 from app.utils.pagination import paginate
+from app.utils.email_utils import send_email,send_first_post_congrats_email
 
 router = APIRouter()
 
@@ -24,10 +25,17 @@ logger = logging.getLogger(__name__)
 @router.post("/posts", response_model=PostShow)
 async def create_post(
      post: PostCreate,
+     background_tasks : BackgroundTasks,
      db: AsyncSession = Depends(get_db),
      current: dict = Depends(current_user)
 ):
     user =  current["user"]
+
+    result = await db.execute(
+        select(func.count(models.Post.post_id))
+        .where(models.Post.user_id == user.user_id)
+    )
+    is_first_post = result.scalar_one() == 0
 
     new_post = models.Post(
         content_type=post.content_type,
@@ -59,6 +67,10 @@ async def create_post(
             "title": new_post.title,
         }
     )
+    if is_first_post:
+        background_tasks.add_task(
+            send_first_post_congrats_email, user.email, user.name, new_post.title
+        )
     return new_post
 
 # Current user's posts
