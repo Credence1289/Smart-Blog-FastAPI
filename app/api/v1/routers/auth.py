@@ -150,7 +150,7 @@ async def reset_password(
 ):
     payload = decode_token(data.token)
 
-    if payload is None or payload.get("roke") != "password-reset":
+    if payload is None or payload.get("role") != "password-reset":
         raise HTTPException(
             status_code=400,
             detail="Invalid or expired reset token"
