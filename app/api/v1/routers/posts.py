@@ -4,7 +4,10 @@ from sqlalchemy import select, func,delete, case,desc #lets you call sqlfucntion
 from sqlalchemy.orm import selectinload
 from typing import Optional
 import logging
+import json
 
+from app.cache.keys import *
+from app.cache.redis_client import redis_client
 from app.schemas.posts_schema import PostCreate, PostShow,PostUpdate,TrendingPostOut
 from app.schemas.users_schema import UserIn, UserOut
 from app.schemas.pagination_schema import PaginatePostOut
@@ -82,6 +85,18 @@ async def show_my_posts(
 ):
     user = current["user"]
 
+    key = user_posts_key(
+        user.user_id,
+        pagination["page"],
+        pagination["size"]
+    )
+
+    cached_posts = await redis_client.get(key)
+
+    if cached_posts:
+        print("Cache Hit")
+        return json.loads(cached_posts)
+    
     #You expect multiple rows (a list of posts)
     stmt = (
         select(models.Post)
@@ -89,25 +104,44 @@ async def show_my_posts(
         .where(models.Post.user_id == user.user_id)
         .order_by(models.Post.created_at.desc())
     )
-    result = await db.execute(stmt)
-    post = result.scalars().all()
+    #why we remove it before applying redis is bcz we are loadind the posts then paginate it 
+    #That defeats the purpose of the pagination and makes your Redis implementation messy.(Twice execution)
 
-    logger.info(f"Posts fetched by {user.username}")
-
-    # return posts
-    return await paginate(
+    # result = await db.execute(stmt)
+    # post = result.scalars().all()
+    result = await paginate(
         db=db,
         stmt=stmt,
         page=pagination["page"],
         size=pagination["size"],
         key="posts"
     )
+    post_out =  PaginatePostOut.model_validate(result)
+
+    await redis_client.set(
+        key,
+        post_out.model_validate_json(),
+        ex=900
+    )
+
+    logger.info(f"Posts fetched by {user.username}")
+
+    # return posts
+    return result
 
 @router.get("/posts/{post_id}", response_model=PostShow)
 async def show_post(
         post_id: int,
         db:AsyncSession = Depends(get_db),
 ):
+    key = post_key(post_id)
+
+    cached_post = await redis_client.get(key)
+
+    if cached_post:
+        print("Cache Hit")
+        return json.loads(cached_post)
+    
     #You expect a single row — fetching by primary key or unique field
     result = await db.execute(
         select(models.Post)
@@ -124,7 +158,14 @@ async def show_post(
         )
     logger.info(f"Post fetched by user")
 
-    return post
+    post_out = PostShow.model_validate(post)
+    await redis_client.set(
+        key,
+        post_out.model_dump_json(),
+        ex=900
+    )
+    
+    return post_out
 
 @router.get("/posts", response_model=PaginatePostOut)
 async def show_all_posts(
@@ -142,18 +183,19 @@ async def show_all_posts(
     if content_type != "all":
         stmt = stmt.where(models.Post.content_type == content_type)
 
-    result = await db.execute(stmt)
-    post = result.scalars().all()
+    # result = await db.execute(stmt)
+    # post = result.scalars().all()
 
-    logger.info(f"Posts fetched by a user ")
-
-    return await paginate(
+    result  = await paginate(
         db=db,
         stmt=stmt,
         page=pagination["page"],
         size=pagination["size"],
         key="posts"
     )
+    logger.info(f"Posts fetched by a user ")
+
+    return result 
 
 
 @router.patch("/posts/{post_id}", response_model=PostShow)
@@ -163,6 +205,8 @@ async def update_post(
     db: AsyncSession = Depends(get_db),
     current: dict = Depends(current_user)
 ):
+    key = post_key(post_id)
+    
     result = await db.execute(
         select(models.Post)
         .options(selectinload(models.Post.user))
@@ -192,6 +236,7 @@ async def update_post(
     if post.content_type is not None:
         existing_post.content_type = post.content_type
 
+
     await db.commit()
     result = await db.execute(
         select(models.Post)
@@ -199,6 +244,9 @@ async def update_post(
         .where(models.Post.post_id == existing_post.post_id)
     )
     existing_post = result.scalar_one()
+
+    await redis_client.delete(key)
+
     logger.info("Post is successfully updated")
 
     return existing_post
@@ -210,11 +258,12 @@ async def delete_all_posts(
     current: dict = Depends(current_user)
 ):
     user = current["user"]
-
     await db.execute(
         delete(models.Post).where(models.Post.user_id == user.user_id)
     )
     await db.commit()
+    await redis_client.delete(user_posts_key(user.user_id))
+
     logger.info("Posts successfully deleted")
 
     return {"Message": "Posts successfully deleted"}
@@ -226,6 +275,7 @@ async def delete_post(
     db: AsyncSession = Depends(get_db),
     current: dict = Depends(current_user)
 ):
+    key = post_key(post_key)
 
     result = await db.execute(
         select(models.Post).where(models.Post.post_id == post_id)
@@ -242,6 +292,9 @@ async def delete_post(
 
     await db.delete(post)
     await db.commit()
+
+    await redis_client.delete(key)
+    
     logger.info(f"Post is successfully deleted")
 
     return {"Message": "Post Deleted"}

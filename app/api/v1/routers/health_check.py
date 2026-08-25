@@ -6,7 +6,7 @@ from app.db.session import get_db
 
 router = APIRouter()
 
-@router.get("/app_health")
+@router.get("/smartblog_health")
 async def health_check(
         db:AsyncSession = Depends(get_db)
 ):
@@ -21,9 +21,10 @@ async def health_check(
         }
     except Exception:
         raise HTTPException(
-            status_code=503,
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail={
                 "status": "failed",
                 "database": "unavailable"
             }
         )
+

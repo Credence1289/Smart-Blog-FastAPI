@@ -3,7 +3,10 @@ import logging
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlalchemy import select, func
+import json
 
+from app.cache.redis_client import redis_client
+from app.cache.keys import *
 from app.schemas.profile_schema import ProfileIn, ProfileOut,ProfileUpdate
 from app.db.session import get_db
 from app.core.gate import current_user
@@ -65,6 +68,14 @@ async def get_my_profile(
 ):
     user = current["user"]
 
+    key = profile_key(user.user_id)
+
+    cached_profile = await redis_client.get(key)
+
+    if cached_profile:
+        print("Cache Hit")
+        return json.loads(cached_profile)
+    
     result = await db.execute(
         select(models.Profile)
         .options(
@@ -74,7 +85,7 @@ async def get_my_profile(
         .where(models.Profile.user_id == user.user_id)
     )
     profile = result.scalar_one_or_none()
-
+    cache_profile = ProfileOut.model_validate(profile)
     if not user or not profile:
         logger.info(f"Profile not found for {user.user_id}")
         raise HTTPException(
@@ -82,6 +93,11 @@ async def get_my_profile(
             detail="Profile not found"
         )
 
+    await redis_client.set(
+        key,
+        cache_profile.model_dump_json(),
+    )
+        
     return profile
 
 
@@ -91,6 +107,7 @@ async def get_profile(
     db: AsyncSession = Depends(get_db),
     current:dict = Depends(current_user),
 ):
+    
     result = await db.execute(
         select(models.Profile)
         .options(
@@ -138,4 +155,6 @@ async def update_profile(
     )
     existing_profile = result.scalar_one()
 
+    await redis_client.delete(profile_key(user.user_id))
+    
     return existing_profile

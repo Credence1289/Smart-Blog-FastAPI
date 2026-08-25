@@ -23,7 +23,9 @@ class Settings(BaseSettings):
     MAIL_USE_TLS:bool = Field(...,env="MAIL_USE_TLS")
 
     FRONTEND_URL:str = Field(...,env="FRONTEND_URL")
-
+    
+    REDIS_HOST:int = Field("localhost", env="REDIS_HOST")
+    REDIS_PORT:int = Field(6379, env="REDIS_PORT")
     class Config:
         env_file = ".env"
         case_sensitive = True

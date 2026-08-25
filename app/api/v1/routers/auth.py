@@ -143,7 +143,7 @@ async def forgot_password(
 
     return {"message" : "Reset link has been sent"}
 
-@router.post("/reset_password", response_model=TokenOut)
+@router.post("/reset_password")
 async def reset_password(
         data: ResetPasswordIn,
         db:AsyncSession = Depends(get_db)
@@ -166,9 +166,23 @@ async def reset_password(
             detail="User not found"
         )
     user.password = hash_password(data.new_password)
-    await db.commit()
-    await db.refresh(user)
 
-    logger.info(f"Password reset completed for {payload.user_id}")
+    try:
+        await db.commit()
+        await db.refresh(user)
+    except Exception:
+        await db.rollback()
+        logger.exception(
+            f"Failed to reset password for user_id={payload['user_id']}"
+        )
+
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Unable to reset password"
+        )
+
+    logger.info(
+        f"Password successfully reset for user_id={user.user_id}"
+    )
 
     return {"message": "Password reset successful"}

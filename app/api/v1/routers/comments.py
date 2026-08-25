@@ -6,7 +6,10 @@ from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
 import logging
 from uuid import UUID
+import json
 
+from app.cache.redis_client import redis_client
+from app.cache.keys import *
 from app.schemas.pagination_schema import PaginateCommentsOut
 from app.models import models
 from app.db.session import get_db
@@ -70,6 +73,17 @@ async def read_comments(
     db: AsyncSession = Depends(get_db)
 ):
 
+    key = comments_key(
+        post_id,
+        pagination["page"],
+        pagination["size"]
+    )
+    cached_comments = await redis_client.get(key)
+
+    if cached_comments:
+        print("Cache Hit")
+        return json.loads(cached_comments)
+
     result = await db.execute(
        select(models.Post)
        .where(models.Post.post_id == post_id)
@@ -88,21 +102,27 @@ async def read_comments(
         .where(models.Comment.post_id == post_id)
         .order_by(models.Comment.created_at.desc())
     )
-    result = await db.execute(stmt)
-    comments = result.scalars().all()
-
-
-    logger.info(
-        f"Fetched comments for post {post_id}"
-    )
-
-    return await paginate(
+    # result = await db.execute(stmt)
+    # comments = result.scalars().all()
+    result = await paginate(
         db=db,
         stmt=stmt,
         page=pagination["page"],
         size=pagination["size"],
         key="comments",
     )
+    comments_out =  PaginateCommentsOut.model_validate(result)
+    await redis_client.set(
+        key,
+        comments_out.model_dump_json(),
+        ex=600
+    )
+
+    logger.info(
+        f"Fetched comments for post {post_id}"
+    )
+
+    return result 
 
 @router.patch("/comments/{comments_id}", response_model=CommentsOut)
 async def update_comment(
@@ -147,6 +167,7 @@ async def update_comment(
         .where(models.Comment.comments_id == comments_id)
     )
     up_comment = result.scalar_one()
+    await redis_client.delete(comment_key(comments_id))
 
     logger.info(
         f"Comment {comments_id} updated"
@@ -182,7 +203,8 @@ async def delete_comment(
 
     await db.delete(comment)
     await db.commit()
-
+    
+    await redis_client.delete(comment_key(comments_id))
     logger.info(
         f"Comment {comments_id} deleted"
     )

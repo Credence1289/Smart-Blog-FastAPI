@@ -2,7 +2,10 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 import logging
+import json
 
+from app.cache.redis_client import redis_client
+from app.cache.keys import *
 from app.models import models
 from app.db.session import get_db
 from app.schemas.upvote_schema import VoteCreate
@@ -67,6 +70,14 @@ async def get_votes(
         db: AsyncSession = Depends(get_db),
         current: dict = Depends(current_user)
 ):
+    key = likes_key(post_id)
+
+    cached = await redis_client.get(key)
+
+    if cached:
+        print("Cache Hit")
+        return json.loads(cached)
+
     result = await db.execute(
         select(models.Post).where(models.Post.post_id == post_id)
     )
@@ -90,6 +101,11 @@ async def get_votes(
     )
     downvotes = result.scalar_one()
 
+    await redis_client.set(
+        key,
+        json.dumps(result.model_dump()),
+        ex=300
+    )
     return {
         "upvotes": upvotes,
         "downvotes": downvotes
