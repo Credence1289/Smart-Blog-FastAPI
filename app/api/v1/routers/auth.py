@@ -1,9 +1,11 @@
-from fastapi import APIRouter, HTTPException, Depends, status,BackgroundTasks
+from fastapi import APIRouter, HTTPException, Depends, status,BackgroundTasks, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi.security import OAuth2PasswordRequestForm
 import logging
 from sqlalchemy import select
 
+from app.rate_limit.limiter import limiter
+from app.rate_limit.config import *
 from app.schemas.token_schema import RefreshTokenIn, TokenOut, AccessTokenOut, ResetPasswordIn,ForgotPasswordIn
 from app.schemas.users_schema import UserIn, UserOut
 from app.db.session import get_db
@@ -20,7 +22,9 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 @router.post("/register", response_model = UserOut,status_code=status.HTTP_201_CREATED)
+@limiter.limit(REGISTER_LIMIT)
 async def register_user(
+    request: Request,
     user: UserIn,
     background_tasks:BackgroundTasks,
     db: AsyncSession = Depends(get_db)
@@ -62,7 +66,9 @@ async def register_user(
 
 
 @router.post("/login", response_model=TokenOut)
+@limiter.limit(LOGIN_LIMIT)
 async def login_user(
+    request: Request,
     db: AsyncSession = Depends(get_db),
     form_data: OAuth2PasswordRequestForm = Depends()
 ):
@@ -94,6 +100,7 @@ async def login_user(
 
 @router.post("/user/refresh", response_model=AccessTokenOut)
 def refresh_access_token(
+    request: Request,
     data: RefreshTokenIn,
 ):
     payload = decode_token(data.refresh_token)
@@ -123,9 +130,10 @@ def refresh_access_token(
 
 @router.post("/forgot_password")
 async def forgot_password(
-        data:ForgotPasswordIn,
-        background_tasks:BackgroundTasks,
-        db: AsyncSession = Depends(get_db)
+    request: Request,
+    data:ForgotPasswordIn,
+    background_tasks:BackgroundTasks,
+    db: AsyncSession = Depends(get_db)
 ):
     result = await db.execute(
         select(models.User).where(models.User.email == data.email)
@@ -145,8 +153,9 @@ async def forgot_password(
 
 @router.post("/reset_password")
 async def reset_password(
-        data: ResetPasswordIn,
-        db:AsyncSession = Depends(get_db)
+    request: Request,
+    data: ResetPasswordIn,
+    db:AsyncSession = Depends(get_db)
 ):
     payload = decode_token(data.token)
 

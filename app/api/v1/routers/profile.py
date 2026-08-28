@@ -1,10 +1,12 @@
-from fastapi import FastAPI, Depends, HTTPException,status,APIRouter
+from fastapi import FastAPI, Depends, HTTPException,status,APIRouter, Request
 import logging
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlalchemy import select, func
 import json
 
+from app.rate_limit.limiter import limiter
+from app.rate_limit.config import *
 from app.cache.redis_client import redis_client
 from app.cache.keys import *
 from app.schemas.profile_schema import ProfileIn, ProfileOut,ProfileUpdate
@@ -21,8 +23,10 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-@router.post("/me",response_model=ProfileOut,status_code=status.HTTP_201_CREATED,)
+@router.post("/me",response_model=ProfileOut,status_code=status.HTTP_201_CREATED)
+@limiter.limit(CREATE_LIMIT)
 async def create_profile(
+    request: Request,
     profile: ProfileIn,
     db: AsyncSession = Depends(get_db),
     current: dict = Depends(current_user),
@@ -62,7 +66,9 @@ async def create_profile(
 
 
 @router.get("/me", response_model=ProfileOut)
+@limiter.limit(GENERAL_LIMIT)
 async def get_my_profile(
+    request: Request,
     db: AsyncSession = Depends(get_db),
     current: dict = Depends(current_user),
 ):
@@ -102,7 +108,9 @@ async def get_my_profile(
 
 
 @router.get("/{username}", response_model=ProfileOut)
+@limiter.limit(REGISTER_LIMIT)
 async def get_profile(
+    request: Request,
     username: str,
     db: AsyncSession = Depends(get_db),
     current:dict = Depends(current_user),
@@ -125,7 +133,9 @@ async def get_profile(
     return profile
 
 @router.patch("/me", response_model=ProfileOut)
+@limiter.limit(UPDATE_LIMIT)
 async def update_profile(
+    request: Request,
     profile: ProfileUpdate,
     db: AsyncSession = Depends(get_db),
     current: User = Depends(current_user),

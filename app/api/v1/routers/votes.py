@@ -1,9 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 import logging
 import json
 
+from app.rate_limit.limiter import limiter
+from app.rate_limit.config import *
 from app.cache.redis_client import redis_client
 from app.cache.keys import *
 from app.models import models
@@ -18,11 +20,13 @@ router = APIRouter()
 
 
 @router.post("/posts/{post_id}/vote")
+@limiter.limit(GENERAL_LIMIT)
 async def vote_post(
-        post_id: int,
-        new_vote: VoteCreate,
-        db: AsyncSession = Depends(get_db),
-        current: dict = Depends(current_user)
+    request: Request,
+    post_id: int,
+    new_vote: VoteCreate,
+    db: AsyncSession = Depends(get_db),
+    current: dict = Depends(current_user)
 ):
     user = current["user"]
 
@@ -65,10 +69,12 @@ async def vote_post(
 
 
 @router.get("/posts/{post_id}/vote")
+@limiter.limit(GENERAL_LIMIT)
 async def get_votes(
-        post_id: int,
-        db: AsyncSession = Depends(get_db),
-        current: dict = Depends(current_user)
+    request: Request,
+    post_id: int,
+    db: AsyncSession = Depends(get_db),
+    current: dict = Depends(current_user)
 ):
     key = likes_key(post_id)
 

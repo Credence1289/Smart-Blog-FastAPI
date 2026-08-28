@@ -4,14 +4,18 @@ from fastapi.responses import RedirectResponse
 import logging
 from app.core.logger import set_logger
 from contextlib import asynccontextmanager
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
 set_logger()
 
+from app.rate_limit.limiter import limiter
 from app.db.dbengine import AsyncEngine
 from app.cache.redis_client import redis_client
 from app.api.v1.api import sb_router
 
 logger = logging.getLogger(__name__)
+
 
 @asynccontextmanager
 async def lifespan(app:FastAPI):
@@ -48,6 +52,13 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"]
     )
+    app.state.limiter = limiter   #SlowAPI limiter object
+    
+    app.add_exception_handler(
+        RateLimitExceeded,
+        _rate_limit_exceeded_handler
+    )
+
     @app.get("/", include_in_schema=False)
     def root():
         return RedirectResponse(url="/api/v1/docs")

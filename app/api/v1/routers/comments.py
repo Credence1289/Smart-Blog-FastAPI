@@ -1,6 +1,5 @@
 from typing import List
-
-from fastapi import APIRouter,HTTPException, Depends
+from fastapi import APIRouter,HTTPException, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
@@ -8,6 +7,8 @@ import logging
 from uuid import UUID
 import json
 
+from app.rate_limit.limiter import limiter
+from app.rate_limit.config import *
 from app.cache.redis_client import redis_client
 from app.cache.keys import *
 from app.schemas.pagination_schema import PaginateCommentsOut
@@ -24,11 +25,13 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 @router.post("/posts/{post_id}/comments", response_model=CommentsOut)
+@limiter.limit(CREATE_LIMIT)
 async def create_comment(
-        post_id:int,
-        comment: CommentsIn,
-        db: AsyncSession = Depends(get_db),
-        current: dict = Depends(current_user)
+    request: Request,
+    post_id:int,
+    comment: CommentsIn,
+    db: AsyncSession = Depends(get_db),
+    current: dict = Depends(current_user)
 ):
     user = current["user"]
 
@@ -67,7 +70,9 @@ async def create_comment(
     return new_comment
 
 @router.get("/posts/{post_id}/comments",response_model=PaginateCommentsOut)
+@limiter.limit(GENERAL_LIMIT)
 async def read_comments(
+    request: Request,
     post_id: int,
     pagination=Depends(pagination_param),
     db: AsyncSession = Depends(get_db)
@@ -125,7 +130,9 @@ async def read_comments(
     return result 
 
 @router.patch("/comments/{comments_id}", response_model=CommentsOut)
+@limiter.limit(UPDATE_LIMIT)
 async def update_comment(
+    request: Request,
     comments_id: UUID,
     comment_data: CommentsUpdate,
     db: AsyncSession = Depends(get_db),
@@ -176,7 +183,9 @@ async def update_comment(
     return up_comment
 
 @router.delete("/comments/{comments_id}")
+@limiter.limit(DELETE_LIMIT)
 async def delete_comment(
+    request: Request,
     comments_id: UUID,
     db: AsyncSession = Depends(get_db),
     current: dict = Depends(current_user)

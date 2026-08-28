@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
+from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func,delete, case,desc #lets you call sqlfucntion #if else,
 from sqlalchemy.orm import selectinload
@@ -6,6 +6,8 @@ from typing import Optional
 import logging
 import json
 
+from app.rate_limit.limiter import limiter
+from app.rate_limit.config import *
 from app.cache.keys import *
 from app.cache.redis_client import redis_client
 from app.schemas.posts_schema import PostCreate, PostShow,PostUpdate,TrendingPostOut
@@ -26,11 +28,13 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 @router.post("/posts", response_model=PostShow)
+@limiter.limit(CREATE_LIMIT)
 async def create_post(
-     post: PostCreate,
-     background_tasks : BackgroundTasks,
-     db: AsyncSession = Depends(get_db),
-     current: dict = Depends(current_user)
+    request: Request,
+    post: PostCreate,
+    background_tasks : BackgroundTasks,
+    db: AsyncSession = Depends(get_db),
+    current: dict = Depends(current_user)
 ):
     user =  current["user"]
 
@@ -78,10 +82,12 @@ async def create_post(
 
 # Current user's posts
 @router.get("/posts/me", response_model=PaginatePostOut)
+@limiter.limit(GENERAL_LIMIT)
 async def show_my_posts(
-        pagination=Depends(pagination_param),
-        db: AsyncSession = Depends(get_db),
-        current: dict = Depends(current_user)
+    request: Request,
+    pagination=Depends(pagination_param),
+    db: AsyncSession = Depends(get_db),
+    current: dict = Depends(current_user)
 ):
     user = current["user"]
 
@@ -130,9 +136,11 @@ async def show_my_posts(
     return result
 
 @router.get("/posts/{post_id}", response_model=PostShow)
+@limiter.limit(GENERAL_LIMIT)
 async def show_post(
-        post_id: int,
-        db:AsyncSession = Depends(get_db),
+    request: Request,
+    post_id: int,
+    db:AsyncSession = Depends(get_db),
 ):
     key = post_key(post_id)
 
@@ -168,7 +176,9 @@ async def show_post(
     return post_out
 
 @router.get("/posts", response_model=PaginatePostOut)
+@limiter.limit(GENERAL_LIMIT)
 async def show_all_posts(
+    request: Request,
     content_type: str = "all",
     pagination=Depends(pagination_param),
     db: AsyncSession = Depends(get_db),
@@ -199,7 +209,9 @@ async def show_all_posts(
 
 
 @router.patch("/posts/{post_id}", response_model=PostShow)
+@limiter.limit(UPDATE_LIMIT)
 async def update_post(
+    request: Request,
     post_id:int,
     post: PostUpdate,
     db: AsyncSession = Depends(get_db),
@@ -253,7 +265,9 @@ async def update_post(
 
 
 @router.delete("/posts")
+@limiter.limit(DELETE_LIMIT)
 async def delete_all_posts(
+    request: Request,
     db: AsyncSession = Depends(get_db),
     current: dict = Depends(current_user)
 ):
@@ -270,7 +284,9 @@ async def delete_all_posts(
 
 
 @router.delete("/posts/{post_id}")
+@limiter.limit(DELETE_LIMIT)
 async def delete_post(
+    request: Request,
     post_id: int,
     db: AsyncSession = Depends(get_db),
     current: dict = Depends(current_user)
@@ -301,7 +317,9 @@ async def delete_post(
 
 
 @router.get("/trending",response_model=list[TrendingPostOut] )
+@limiter.limit(GENERAL_LIMIT)
 async def get_trending_posts(
+    request: Request,
     limit: int = 10,
     db: AsyncSession = Depends(get_db),
 ):

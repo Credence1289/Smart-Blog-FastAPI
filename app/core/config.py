@@ -24,7 +24,7 @@ class Settings(BaseSettings):
 
     FRONTEND_URL:str = Field(...,env="FRONTEND_URL")
     
-    REDIS_HOST:int = Field("localhost", env="REDIS_HOST")
+    REDIS_HOST:str = Field("localhost", env="REDIS_HOST")
     REDIS_PORT:int = Field(6379, env="REDIS_PORT")
     class Config:
         env_file = ".env"
