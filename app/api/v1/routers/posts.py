@@ -21,7 +21,7 @@ from app.models.models import User, Post,Comment,Vote
 from app.models import models
 from app.dependencies.pagination import pagination_param
 from app.utils.pagination import paginate
-from app.utils.email_utils import send_email,send_first_post_congrats_email
+from app.tasks.email_tasks import send_first_post_congrats_email
 
 router = APIRouter()
 
@@ -32,7 +32,6 @@ logger = logging.getLogger(__name__)
 async def create_post(
     request: Request,
     post: PostCreate,
-    background_tasks : BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     current: dict = Depends(current_user)
 ):
@@ -75,8 +74,10 @@ async def create_post(
         }
     )
     if is_first_post:
-        background_tasks.add_task(
-            send_first_post_congrats_email, user.email, user.name, new_post.title
+        send_first_post_congrats_email(
+            user.email,
+            user.name,
+            new_post.title
         )
     return new_post
 

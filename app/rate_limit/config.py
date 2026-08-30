@@ -1,4 +1,4 @@
-GENERAL_LIMIT = "5/minute"
+GENERAL_LIMIT = "100/minute"
 
 CREATE_LIMIT = "50/minute"
 UPDATE_LIMIT = "25/minute"

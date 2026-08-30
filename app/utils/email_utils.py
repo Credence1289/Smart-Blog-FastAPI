@@ -25,9 +25,13 @@ def send_email(to_email:str, subject:str, body:str):
             server.send_message(msg)
         logger.info("Email sent", extra={"to": to_email, "subject": subject})
     except Exception:
-        logger.exception("Failed to send email", extra={"to": to_email, "subject": subject})
+        logger.exception(
+            "Failed to send email",
+            extra={"to": to_email, "subject": subject}
+        )
+        raise
 
-def send_welcome_email(to_email:str, name:str):
+def welcome_email(to_email:str, name:str):
     subject = "Welcome to SmartBlog!!"
     body = (
         f"Hi {name},\n\n"
@@ -43,13 +47,13 @@ def password_reset_link(to_email:str,reset_token:str):
     body = (
         "We received a request to reset your password.\n\n"
         f"Click the link below to reset it (expires in "
-        f"{settings.RESET_TOKEN_EXPIRY_MIN} minutes):\n\n"
+        f"{settings.RESET_TOKEN_EXPIRE_MIN} minutes):\n\n"
         f"{reset_link}\n\n"
         "If you didn't request this, you can safely ignore this email."
     )
     send_email(to_email, subject, body)
 
-def send_first_post_congrats_email(to_email:str, name:str, post_title:str):
+def first_post_congrats_email(to_email:str, name:str, post_title:str):
     subject = "🎉 You published your first post!"
     body = (
         f"Hi {name},\n\n"

@@ -4,6 +4,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 import logging
 from sqlalchemy import select
 
+from app.tasks.email_tasks import send_password_reset_email, send_welcome_email
 from app.rate_limit.limiter import limiter
 from app.rate_limit.config import *
 from app.schemas.token_schema import RefreshTokenIn, TokenOut, AccessTokenOut, ResetPasswordIn,ForgotPasswordIn
@@ -15,7 +16,8 @@ from app.core.gate import current_user
 from app.models import models
 from datetime import timedelta
 from app.core.config import settings
-from app.utils.email_utils import send_email, send_welcome_email,password_reset_link,send_first_post_congrats_email
+# from app.utils.email_utils import send_email, send_welcome_email,password_reset_link,send_first_post_congrats_email
+
 
 router = APIRouter()
 
@@ -26,7 +28,6 @@ logger = logging.getLogger(__name__)
 async def register_user(
     request: Request,
     user: UserIn,
-    background_tasks:BackgroundTasks,
     db: AsyncSession = Depends(get_db)
 ):
     result = await db.execute(
@@ -61,7 +62,10 @@ async def register_user(
     await db.refresh(new_user)
 
     logger.info("User registered")
-    background_tasks.add_task(send_welcome_email, new_user.email, new_user.name)
+    send_welcome_email(
+        new_user.email, 
+        new_user.name
+    )
     return new_user
 
 
@@ -99,6 +103,7 @@ async def login_user(
     )
 
 @router.post("/user/refresh", response_model=AccessTokenOut)
+@limiter.limit(LOGIN_LIMIT)
 def refresh_access_token(
     request: Request,
     data: RefreshTokenIn,
@@ -129,10 +134,10 @@ def refresh_access_token(
 
 
 @router.post("/forgot_password")
+@limiter.limit(LOGIN_LIMIT)
 async def forgot_password(
     request: Request,
     data:ForgotPasswordIn,
-    background_tasks:BackgroundTasks,
     db: AsyncSession = Depends(get_db)
 ):
     result = await db.execute(
@@ -146,12 +151,16 @@ async def forgot_password(
             role="password-reset",
             expiry=timedelta(days=settings.REFRESH_TOKEN_EXPIRY)
         )
-        background_tasks.add_task(password_reset_link, user.email, reset_token.token)
+        send_password_reset_email.delay(
+            user.email,
+            reset_token
+        )
         logger.info(f"Password reset requested for {user.user_id}")
 
     return {"message" : "Reset link has been sent"}
 
 @router.post("/reset_password")
+@limiter.limit(LOGIN_LIMIT)
 async def reset_password(
     request: Request,
     data: ResetPasswordIn,
