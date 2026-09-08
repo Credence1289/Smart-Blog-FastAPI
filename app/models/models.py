@@ -42,7 +42,7 @@ class Post(Base):
 class Vote(Base):
     __tablename__ = "votes"
 
-    _table_args__ = (
+    __table_args__ = (
         UniqueConstraint( #prevents a user from voting multiple times on the same post.  
             "user_id",
             "post_id",

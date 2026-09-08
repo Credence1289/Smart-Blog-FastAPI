@@ -91,13 +91,11 @@ async def get_my_profile(
         .where(models.Profile.user_id == user.user_id)
     )
     profile = result.scalar_one_or_none()
-    cache_profile = ProfileOut.model_validate(profile)
-    if not user or not profile:
+    if not profile:
         logger.info(f"Profile not found for {user.user_id}")
-        raise HTTPException(
-            status_code=404,
-            detail="Profile not found"
-        )
+        raise HTTPException(status_code=404, detail="Profile not found")
+
+    cache_profile = ProfileOut.model_validate(profile)
 
     await redis_client.set(
         key,

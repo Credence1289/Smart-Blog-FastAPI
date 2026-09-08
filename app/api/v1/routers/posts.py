@@ -127,7 +127,7 @@ async def show_my_posts(
 
     await redis_client.set(
         key,
-        post_out.model_validate_json(),
+        post_out.model_dump_json(),
         ex=900
     )
 
@@ -277,7 +277,7 @@ async def delete_all_posts(
         delete(models.Post).where(models.Post.user_id == user.user_id)
     )
     await db.commit()
-    await redis_client.delete(user_posts_key(user.user_id))
+    # await redis_client.delete(user_posts_key(user.user_id)) #fix — needs page/size args, or invalidate all pages
 
     logger.info("Posts successfully deleted")
 
